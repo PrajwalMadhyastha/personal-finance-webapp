@@ -1,0 +1,1 @@
+print("Personal Finance Web App - Initial Setup Complete!")
