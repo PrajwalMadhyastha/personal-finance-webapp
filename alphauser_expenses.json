@@ -1,0 +1,9 @@
+[
+    {
+        "expense_type": "STANDARD",
+        "description": "Test",
+        "amount": 25.0,
+        "category": "Food",
+        "timestamp": "2025-06-05T14:59:57.279702"
+    }
+]

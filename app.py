@@ -1,70 +1,99 @@
 # app.py
 from datetime import datetime
 import os
-# Import classes from the models module within the finance_tracker package
+import json # Import the json module
 from finance_tracker.models import Expense, RecurringExpense, User
 
-# --- File Handling Functions (Updated for User's Expenses) ---
+# --- File Handling Functions (Updated for JSON) ---
 
-def save_expenses_to_file(user_object, filename="expenses_user.txt"): # Takes user_object
+def save_expenses_to_file(user_object, filename="user_expenses.json"): # Changed filename
     """
-    Saves the expenses of a given User object to a file.
+    Saves the expenses of a given User object to a JSON file.
     """
     if not hasattr(user_object, 'expenses'):
         print(f"Error: User object for '{user_object.username}' does not have an 'expenses' attribute.")
         return
 
+    # List comprehension to convert all expense objects to dictionaries
+    expenses_as_dicts = [expense_obj.to_dict() for expense_obj in user_object.expenses]
+
     try:
         with open(filename, "w") as f:
-            for expense_obj in user_object.expenses: # Save from user_object.expenses
-                f.write(expense_obj.to_file_string())
+            json.dump(expenses_as_dicts, f, indent=4) # Use json.dump
         print(f"Expenses for user '{user_object.username}' successfully saved to {filename}")
     except IOError:
         print(f"Error: Could not save expenses to {filename}.")
+    except TypeError as e: # Catch errors if objects are not serializable (should be handled by to_dict)
+        print(f"Error serializing expenses to JSON: {e}")
 
-def load_expenses_from_file(filename="expenses_user.txt"): # Name updated for clarity
+
+def load_expenses_from_file(filename="user_expenses.json"): # Changed filename
     """
-    Loads expenses from a file, returning a list of Expense or RecurringExpense objects.
-    (This function's core logic remains the same, it still just returns a list of objects)
+    Loads expenses from a JSON file, creating Expense or RecurringExpense objects.
     """
     loaded_expense_objects = []
     try:
         with open(filename, "r") as f:
-            for line_number, line in enumerate(f, 1):
-                stripped_line = line.strip()
-                if not stripped_line: continue
+            data = json.load(f) # Load the entire JSON structure (list of dicts)
+            
+            if not isinstance(data, list):
+                print(f"Warning: Data in {filename} is not a list. Skipping load.")
+                return []
+
+            for expense_dict in data:
+                if not isinstance(expense_dict, dict):
+                    print(f"Warning: Found non-dictionary item in {filename}. Skipping item: {expense_dict}")
+                    continue
+
+                expense_type = expense_dict.get("expense_type") # Get the type
                 
-                parts = stripped_line.split(',')
-                expense_type = parts[0]
                 try:
-                    if expense_type == Expense.EXPENSE_TYPE and len(parts) == 5:
-                        description, amount_str, category, timestamp_str = parts[1], parts[2], parts[3], parts[4]
-                        expense_obj = Expense(description, float(amount_str), category, timestamp_str)
+                    # Common fields
+                    description = expense_dict.get("description")
+                    amount = float(expense_dict.get("amount", 0)) # Default to 0 if amount is missing
+                    category = expense_dict.get("category")
+                    timestamp = expense_dict.get("timestamp")
+
+                    if not all([description, category, timestamp]): # Basic validation
+                        print(f"Warning: Missing essential fields in expense data: {expense_dict}. Skipping.")
+                        continue
+
+                    if expense_type == Expense.EXPENSE_TYPE:
+                        expense_obj = Expense(description, amount, category, timestamp)
                         loaded_expense_objects.append(expense_obj)
-                    elif expense_type == RecurringExpense.EXPENSE_TYPE and len(parts) == 6:
-                        description, amount_str, category, timestamp_str, recurrence_period = parts[1], parts[2], parts[3], parts[4], parts[5]
-                        expense_obj = RecurringExpense(description, float(amount_str), category, recurrence_period, timestamp_str)
+                    elif expense_type == RecurringExpense.EXPENSE_TYPE:
+                        recurrence_period = expense_dict.get("recurrence_period")
+                        if not recurrence_period:
+                            print(f"Warning: Missing 'recurrence_period' for recurring expense: {expense_dict}. Skipping.")
+                            continue
+                        expense_obj = RecurringExpense(description, amount, category, recurrence_period, timestamp)
                         loaded_expense_objects.append(expense_obj)
                     else:
-                        print(f"Warning: Skipping malformed line #{line_number} in {filename}: Unknown type or incorrect parts. Line: '{line.strip()}'")
-                except ValueError:
-                    print(f"Warning: Skipping corrupted data on line #{line_number} in {filename} (amount not a number): '{line.strip()}'")
-                except IndexError:
-                     print(f"Warning: Skipping malformed line #{line_number} in {filename} (not enough parts for type '{expense_type}'): '{line.strip()}'")
+                        print(f"Warning: Unknown expense type '{expense_type}' in {filename}. Skipping item: {expense_dict}")
+                
+                except (ValueError, TypeError) as e: # Catch issues with float conversion or missing keys if .get wasn't used carefully
+                    print(f"Warning: Corrupted data for an expense in {filename}. Details: {e}. Item: {expense_dict}. Skipping.")
+
         if loaded_expense_objects:
             print(f"Successfully parsed {len(loaded_expense_objects)} expense objects from {filename}")
-        else:
-            print(f"No valid expense data found in {filename} or file was empty.")
+        elif data: # File was loaded but no valid objects were created
+            print(f"No valid expense objects could be created from data in {filename}.")
+        else: # File was empty or json.load returned an empty list
+             print(f"No expense data found in {filename} or file was empty.")
+
+
     except FileNotFoundError:
-        print(f"No previous expenses file found at '{filename}'.") # Message tweaked
+        print(f"No previous expenses file found at '{filename}'.")
+    except json.JSONDecodeError: # Handle malformed JSON
+        print(f"Error: Could not decode JSON from {filename}. File might be corrupted or empty.")
     except IOError:
         print(f"Error: Could not read expenses from {filename}.")
     return loaded_expense_objects
 
-# --- Core Expense Logic Functions (Simplified or adapted) ---
+# --- Core Expense Logic Functions (log_standard_expense_details, log_recurring_expense_details) ---
+# These remain largely the same as they create and return objects.
 
-def log_standard_expense_details(): # This function can stay as it just creates an object
-    """ Prompts for standard expense details, creates an Expense object, and returns it. """
+def log_standard_expense_details():
     print("\n--- Log New Standard Expense ---")
     description = input("Enter expense description: ").strip()
     amount = 0.0
@@ -81,8 +110,7 @@ def log_standard_expense_details(): # This function can stay as it just creates 
     print(f"Standard Expense Details Logged: {new_expense.description}")
     return new_expense
 
-def log_recurring_expense_details(): # Added for completeness
-    """ Prompts for recurring expense details, creates a RecurringExpense object, and returns it. """
+def log_recurring_expense_details():
     print("\n--- Log New Recurring Expense ---")
     description = input("Enter expense description: ").strip()
     amount = 0.0
@@ -96,72 +124,64 @@ def log_recurring_expense_details(): # Added for completeness
     category_input = input("Enter expense category (e.g., Subscription, Rent) [Default: Subscription]: ").strip().title()
     category = category_input if category_input else "Subscription"
     recurrence_period = input("Enter recurrence period (e.g., Monthly, Yearly): ").strip().title()
-    if not recurrence_period: recurrence_period = "Monthly" # Default period
+    if not recurrence_period: recurrence_period = "Monthly" 
 
     new_recurring_expense = RecurringExpense(description, amount, category, recurrence_period)
     print(f"Recurring Expense Details Logged: {new_recurring_expense.description}")
     return new_recurring_expense
 
-
-# The global 'view_all_expenses' and 'get_total_expenses' are now methods of the User class.
-# The 'record_and_store_expenses' function is also implicitly handled by adding to user.expenses
-
 # --- Main Application Execution ---
 if __name__ == "__main__":
-    # 1. Create the current_user object
-    # Replace "YourName" and "youremail@example.com" with actual desired values
-    current_user = User(username="TestUser", email="test@example.com")
+    current_user = User(username="AlphaUser", email="alpha@example.com") # Example User
     print(f"\nWelcome, {current_user.username}, to your Personal Finance Tracker!")
-    print(f"User details: {current_user}") # Uses __str__ from User class
+    print(f"User details: {current_user}")
     
-    # 2. Define the filename for this user's expenses
-    # For simplicity, you could use current_user.username or user_id in filename
-    # For now, a generic name as requested:
-    user_expenses_file = "expenses_data_user.txt" # Changed from "expenses_user.txt" to avoid old file format confusion if any
+    user_expenses_file = f"{current_user.username.lower()}_expenses.json" # User-specific filename
 
-    # 3. Load expenses from file and add them to the current_user
     print(f"\nLoading expenses for {current_user.username} from '{user_expenses_file}'...")
-    loaded_expense_objects = load_expenses_from_file(user_expenses_file)
-    if loaded_expense_objects:
-        for exp_obj in loaded_expense_objects:
-            current_user.add_expense(exp_obj) # Add to user's internal list
-        print(f"{len(loaded_expense_objects)} expenses loaded into {current_user.username}'s account.")
+    loaded_objects = load_expenses_from_file(user_expenses_file)
+    for obj in loaded_objects:
+        current_user.add_expense(obj) # Silently add, add_expense prints its own confirmation if verbose
     
     print(f"\nCurrent System Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Logging new expenses
     while True:
-        log_choice = input("\nLog a new expense? (s for standard, r for recurring, n for no): ").strip().lower()
+        log_choice = input("\nLog a new expense? (s: standard, r: recurring, v: view, f: filter by cat, q: quit): ").strip().lower()
         if log_choice == 's':
             new_expense = log_standard_expense_details()
             current_user.add_expense(new_expense)
         elif log_choice == 'r':
             new_recurring_expense = log_recurring_expense_details()
             current_user.add_expense(new_recurring_expense)
-        elif log_choice == 'n':
+        elif log_choice == 'v':
+            current_user.view_expenses()
+        elif log_choice == 'f':
+            cat_to_filter = input("Enter category to filter by: ")
+            filtered = current_user.get_expenses_by_category(cat_to_filter)
+            if filtered:
+                print(f"\n--- Expenses in Category: {cat_to_filter.title()} ---")
+                header = f"{'#':<3} | {'Timestamp':<26} | {'Description':<25} | {'Amount (₹)':<12} | {'Category':<20} | {'Recurrence':<15}"
+                print(header)
+                print("-" * len(header))
+                for idx, exp_obj in enumerate(filtered):
+                    exp_obj.display(idx + 1)
+                print("-" * len(header))
+            else:
+                print(f"No expenses found in category: {cat_to_filter.title()}")
+        elif log_choice == 'q':
             break
         else:
-            print("Invalid choice. Please enter 's', 'r', or 'n'.")
+            print("Invalid choice. Please try again.")
 
-    # View and total expenses using User object's methods
     if current_user.expenses:
-        current_user.view_expenses() # Calls User.view_expenses()
-        total_spent = current_user.get_total_expenses() # Calls User.get_total_expenses()
+        # view_expenses already called if user chose 'v'
+        total_spent = current_user.get_total_expenses()
         print(f"\n--- Total Expenses for {current_user.username} ---")
         print(f"You have spent a total of: ₹{total_spent:.2f}")
+        save_expenses_to_file(current_user, user_expenses_file)
     else:
         print(f"\nNo expenses recorded for {current_user.username} to display or total.")
-
-    # Save the current_user's expenses to the file
-    if current_user.expenses:
-        save_expenses_to_file(current_user, user_expenses_file) # Pass current_user object
-    else:
-        # If there are no expenses, we might still want to save an empty file
-        # to overwrite any old data if that's the desired behavior.
-        # For now, only saving if there are expenses.
-        print(f"No expenses for {current_user.username} to save.")
-        # To ensure an old file doesn't persist if all expenses are deleted,
-        # you could explicitly save an empty list or delete the file:
-        # save_expenses_to_file(current_user, user_expenses_file) # Will save an empty file if user.expenses is empty
-
+        # Optionally save an empty list to clear the file if desired
+        # save_expenses_to_file(current_user, user_expenses_file) 
+        
     print("\nExiting application.")
