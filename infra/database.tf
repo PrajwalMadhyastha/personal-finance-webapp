@@ -9,12 +9,12 @@ resource "random_string" "unique" {
 
 # --- Azure PostgreSQL Flexible Server ---
 resource "azurerm_postgresql_flexible_server" "pg_server" {
-  name                = "pfa-postgres-server-${random_string.unique.result}"
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = var.location
-  version             = "14"                      # Specify a PostgreSQL version
-  delegated_subnet_id = azurerm_subnet.default.id # Deploy into our existing subnet
-
+  name                   = "pfa-postgres-server-${random_string.unique.result}"
+  resource_group_name    = azurerm_resource_group.rg.name
+  location               = var.location
+  version                = "14"                      # Specify a PostgreSQL version
+  delegated_subnet_id    = azurerm_subnet.default.id # Deploy into our existing subnet
+  private_dns_zone_id    = azurerm_private_dns_zone.pfa_dns_zone.id
   administrator_login    = var.db_admin_login
   administrator_password = var.db_admin_password
 
