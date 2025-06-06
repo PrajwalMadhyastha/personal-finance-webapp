@@ -1,20 +1,72 @@
-from flask import Flask
+from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-@app.route('/')
-def hello_world():
-    return 'Hello, World! This is my Personal Finance App homepage.'
+temp_expenses_store = []
 
-# Define another route
+@app.route('/')
+def home():
+    """Renders the homepage."""
+    return render_template('index.html')
+
 @app.route('/about')
 def about_page():
+    """Renders a simple 'about' page."""
     return 'This is the about page for the finance app.'
 
+@app.route('/add_expense', methods=['GET', 'POST'])
+def add_expense_route():
+    """
+    Handles both displaying the expense form (GET) and processing its submission (POST).
+    """
+    # Check if the request is a POST request (i.e., the form was submitted)
+    if request.method == 'POST':
+        # --- This block handles the form submission ---
+
+        # 1. Access form data using the 'request.form' dictionary-like object
+        description = request.form['description']
+        amount_str = request.form['amount']
+        category = request.form['category']
+
+        # 2. Basic server-side validation
+        if not description or not amount_str or not category:
+            return "Error: All fields are required.", 400 # Return error with HTTP status 400 (Bad Request)
+
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            return "Error: Amount must be a number.", 400
+
+        # 3. Process the data (for now, print and store temporarily)
+        print(f"New Expense Submitted -> Description: {description}, Amount: {amount}, Category: {category}")
+
+        # In a real scenario, you'd create an Expense object and save it:
+        # expense_obj = Expense(description, amount, category)
+        # current_user.add_expense(expense_obj)
+        # save_expenses_to_file(current_user, user_expenses_file)
+
+        # For this exercise, we append to our temporary list
+        temp_expenses_store.append({
+            "description": description, 
+            "amount": amount, 
+            "category": category
+        })
+        print(f"Current temp store: {temp_expenses_store}")
+
+        # 4. Return a success response
+        # Later, we'll learn to redirect the user to another page (e.g., the homepage or a list of all expenses).
+        return f"""
+            <h1>Expense '{description}' added successfully!</h1>
+            <a href="/add_expense">Add Another Expense</a><br>
+            <a href="/">Back to Home</a>
+        """
+    else:
+        # --- This block handles the GET request (just showing the page) ---
+        return render_template('add_expense_form.html')
+
 # This block ensures the app runs only when the script is executed directly
-# (and not when imported as a module by another script)
 if __name__ == '__main__':
-    app.run(debug=True) # debug=True is helpful for development
+    app.run(debug=True)
 
 # # app.py
 # from datetime import datetime
