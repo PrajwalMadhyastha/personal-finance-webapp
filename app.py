@@ -1,80 +1,69 @@
 # app.py
 from flask import Flask, render_template, request, redirect, url_for
-import json
-from finance_tracker.models import Expense, RecurringExpense, User # Assuming models.py is in finance_tracker/
+import sqlite3
+from datetime import datetime
+
+# We no longer need the User/Expense classes for this simplified DB interaction,
+# nor the JSON file handlers. This makes the app script cleaner.
+# from finance_tracker.models import Expense, User
 
 # ==============================================================================
-# File Handling Functions (Defined directly in the app script for simplicity)
+# Database Initialization
 # ==============================================================================
 
-def save_expenses_to_file(user_object, filename="user_expenses.json"):
+def init_db():
     """
-    Saves the expenses of a given User object to a JSON file.
+    Initializes the database and creates the 'expenses' table if it doesn't exist.
     """
-    # Use a list comprehension to convert all expense objects to dictionaries
-    expenses_as_dicts = [expense_obj.to_dict() for expense_obj in user_object.expenses]
-    try:
-        with open(filename, "w") as f:
-            json.dump(expenses_as_dicts, f, indent=4)
-    except IOError:
-        # In a real app, you'd want more sophisticated logging here
-        print(f"Error: Could not save expenses to {filename}")
-    except TypeError as e:
-        print(f"Error serializing expenses to JSON: {e}")
-
-def load_expenses_from_file(filename="user_expenses.json"):
-    """
-    Loads expenses from a JSON file, returning a list of Expense/RecurringExpense objects.
-    """
-    loaded_expense_objects = []
-    try:
-        with open(filename, "r") as f:
-            # Handle empty file case
-            content = f.read()
-            if not content:
-                return []
-            data = json.loads(content) # Use json.loads on the content
-            
-            for expense_dict in data:
-                expense_type = expense_dict.get("expense_type")
-                description = expense_dict.get("description")
-                amount = float(expense_dict.get("amount", 0))
-                category = expense_dict.get("category")
-                timestamp = expense_dict.get("timestamp")
-
-                if expense_type == RecurringExpense.EXPENSE_TYPE:
-                    recurrence_period = expense_dict.get("recurrence_period")
-                    expense_obj = RecurringExpense(description, amount, category, recurrence_period, timestamp)
-                else: # Default to standard Expense if type is missing or "STANDARD"
-                    expense_obj = Expense(description, amount, category, timestamp)
-                loaded_expense_objects.append(expense_obj)
-                
-    except FileNotFoundError:
-        return [] # It's normal for the file not to exist on first run.
-    except (json.JSONDecodeError, TypeError):
-        print(f"Warning: Could not decode {filename}. Starting with no expenses.")
-        return [] # Return empty list if file is corrupted or not in the correct format.
-    return loaded_expense_objects
+    # sqlite3.connect() creates the file if it doesn't exist.
+    conn = sqlite3.connect('finance.db')
+    cursor = conn.cursor()
+    
+    # Use IF NOT EXISTS to prevent an error if the table already exists.
+    # This makes the function safe to run every time the app starts.
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            description TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        )
+    ''')
+    
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
+    print("Database initialized successfully.")
 
 # ==============================================================================
 # Flask App Initialization and Routes
 # ==============================================================================
 
-# Initialize the Flask application
 app = Flask(__name__)
-
-# Define a constant for our data file to ensure consistency
-USER_EXPENSES_FILE = "user_expenses.json"
 
 @app.route('/')
 def home():
-    """Renders the homepage and displays the list of all expenses."""
-    expenses_list = load_expenses_from_file(USER_EXPENSES_FILE)
-    return render_template('index.html', expenses=expenses_list)
+    """Renders the homepage and displays the list of all expenses from the database."""
+    conn = sqlite3.connect('finance.db')
+    # This line allows us to access columns by name, which is more readable.
+    conn.row_factory = sqlite3.Row 
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT id, description, amount, category, timestamp FROM expenses ORDER BY timestamp DESC")
+    # .fetchall() retrieves all rows from the query result.
+    expenses_from_db = cursor.fetchall()
+    
+    conn.close()
+    
+    # The database returns a list of sqlite3.Row objects, which act like dictionaries.
+    # So, we can pass them directly to the template!
+    # The 'index.html' template can still use `expense.description`, `expense.amount`, etc.
+    return render_template('index.html', expenses=expenses_from_db)
 
 @app.route('/add_expense', methods=['GET', 'POST'])
 def add_expense():
-    """Handles both displaying the expense form (GET) and processing its submission (POST)."""
+    """Handles both displaying the form (GET) and adding a new expense to the DB (POST)."""
     if request.method == 'POST':
         description = request.form['description']
         amount_str = request.form['amount']
@@ -88,21 +77,27 @@ def add_expense():
         except ValueError:
             return "Error: Amount must be a valid number.", 400
 
-        existing_expenses = load_expenses_from_file(USER_EXPENSES_FILE)
-        new_expense = Expense(description=description, amount=amount, category=category)
+        conn = sqlite3.connect('finance.db')
+        cursor = conn.cursor()
         
-        # We need a temporary User object to use our existing save logic
-        temp_user = User("temp_user")
-        temp_user.expenses = existing_expenses
-        temp_user.add_expense(new_expense) # This method also prints a console confirmation
+        # Use parameterized queries (?) to prevent SQL injection attacks.
+        # This is the secure way to insert data.
+        cursor.execute(
+            "INSERT INTO expenses (description, amount, category, timestamp) VALUES (?, ?, ?, ?)",
+            (description, amount, category, datetime.now().isoformat())
+        )
         
-        save_expenses_to_file(temp_user, USER_EXPENSES_FILE)
+        conn.commit()
+        conn.close()
 
+        # Redirect back to the homepage to see the newly added expense
         return redirect(url_for('home'))
     else:
-        # This is a GET request, so just show the form
+        # For a GET request, just show the form
         return render_template('add_expense_form.html')
 
 # This block runs the app
 if __name__ == '__main__':
+    # Initialize the database once when the app starts
+    init_db()
     app.run(debug=True)
