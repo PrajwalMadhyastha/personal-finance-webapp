@@ -2,11 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Personal Finance Home</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .add-link { display: inline-block; margin-top: 1em; padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; }
+    </style>
 </head>
 <body>
     <h1>Welcome to Your Personal Finance Tracker!</h1>
-    <p>This is the homepage served by Flask.</p>
-    <a href="/add_expense">Add New Expense</a>
+
+    <h2>My Expenses</h2>
+
+    <!-- Use Jinja2 to check if the 'expenses' list has items -->
+    {% if expenses %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Description</th>
+                    <th>Amount (₹)</th>
+                    <th>Category</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Use a Jinja2 for loop to iterate through the expenses -->
+                {% for expense in expenses %}
+                    <tr>
+                        <td>{{ expense.description }}</td>
+                        <!-- Use a filter to format the amount to 2 decimal places -->
+                        <td>₹{{ "%.2f"|format(expense.amount) }}</td>
+                        <td>{{ expense.category }}</td>
+                        <!-- Split the timestamp string to show just the date part -->
+                        <td>{{ expense.timestamp.split('T')[0] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <!-- This block is shown if the 'expenses' list is empty -->
+        <p>No expenses logged yet. Time to add one!</p>
+    {% endif %}
+    
+    <a href="{{ url_for('add_expense') }}" class="add-link">Add New Expense</a>
+
 </body>
 </html>
