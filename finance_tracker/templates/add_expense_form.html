@@ -1,16 +1,14 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Add Expense</title>
-</head>
-<body>
-    <h1>Add a New Expense</h1>
-    <form method="POST" action="/add_expense">
-        <label for="description">Description:</label><br>
-        <input type="text" id="description" name="description" required><br><br>
+{% extends "base.html" %}
 
-        <label for="amount">Amount:</label><br>
+{% block title %}Add New Expense{% endblock %}
+
+{% block content %}
+    <h1>Add a New Expense</h1>
+    <form method="POST" action="{{ url_for('main.add_expense') }}">
+        <label for="description">Description:</label><br>
+        <input type="text" id="description" name="description" required size="50"><br><br>
+
+        <label for="amount">Amount (₹):</label><br>
         <input type="number" step="0.01" id="amount" name="amount" required><br><br>
 
         <label for="category">Category:</label><br>
@@ -18,7 +16,4 @@
 
         <input type="submit" value="Add Expense">
     </form>
-    <br>
-    <a href="/">Back to Home</a>
-</body>
-</html>
+{% endblock %}

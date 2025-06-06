@@ -1,39 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Personal Finance Home</title>
-    <style>
-        body { font-family: sans-serif; margin: 2em; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .add-link { display: inline-block; margin-top: 1em; padding: 10px 15px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; }
-    </style>
-</head>
-<body>
-    <h1>Welcome to Your Personal Finance Tracker!</h1>
+{% extends "base.html" %}
 
+{% block title %}Expense Dashboard{% endblock %}
+
+{% block content %}
     <h2>My Expenses</h2>
 
     {% if expenses %}
-        <table>
+        <table border="1" style="width: 100%; border-collapse: collapse;">
             <thead>
-                <tr>
-                    <th>Description</th>
-                    <th>Amount (₹)</th>
-                    <th>Category</th>
-                    <th>Date</th>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="padding: 8px; border: 1px solid #ddd;">Description</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Amount (₹)</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Category</th>
+                    <th style="padding: 8px; border: 1px solid #ddd;">Date</th>
                 </tr>
             </thead>
             <tbody>
                 {% for expense in expenses %}
                     <tr>
-                        <td>{{ expense.description }}</td>
-                        <td>₹{{ "%.2f"|format(expense.amount) }}</td>
-                        <td>{{ expense.category }}</td>
-                        <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{{ expense.description }}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">₹{{ "%.2f"|format(expense.amount) }}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{{ expense.category }}</td>
+                        <td style="padding: 8px; border: 1px solid #ddd;">{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
@@ -41,8 +29,4 @@
     {% else %}
         <p>No expenses logged yet. Time to add one!</p>
     {% endif %}
-    
-    <a href="{{ url_for('main.add_expense') }}" class="add-link">Add New Expense</a>
-
-</body>
-</html>
+{% endblock %}

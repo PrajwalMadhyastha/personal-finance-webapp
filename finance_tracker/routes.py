@@ -1,37 +1,40 @@
 # finance_tracker/routes.py
-from flask import Blueprint, render_template, request, redirect, url_for
+from flask import Blueprint, render_template, request, redirect, url_for, flash # Import flash
 from .models import Expense
-from . import db  # Import the db instance from the package
+from . import db
 
-# A Blueprint is a way to organize a group of related views and other code.
-# The first argument, 'main', is the Blueprint's name.
-# The second argument, __name__, tells the Blueprint where it's defined.
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 def home():
-    """Renders the homepage and displays expenses."""
     expenses = Expense.query.order_by(Expense.timestamp.desc()).all()
     return render_template('index.html', expenses=expenses)
 
 @main_bp.route('/add_expense', methods=['GET', 'POST'])
-def add_expense():
-    """Handles adding a new expense."""
+def add_expense(): # Renamed function to match endpoint
     if request.method == 'POST':
         description = request.form['description']
         amount_str = request.form['amount']
         category = request.form['category']
 
         if not description or not amount_str or not category:
-            return "Error: All fields are required.", 400
+            flash('Error: All fields are required.', 'error') # Flash an error message
+            return redirect(url_for('main.add_expense'))
+
         try:
             amount = float(amount_str)
         except ValueError:
-            return "Error: Amount must be a valid number.", 400
+            flash('Error: Amount must be a valid number.', 'error') # Flash an error message
+            return redirect(url_for('main.add_expense'))
 
         new_expense = Expense(description=description, amount=amount, category=category)
         db.session.add(new_expense)
         db.session.commit()
-        return redirect(url_for('main.home')) # Note: 'main.home' refers to the 'home' function in the 'main' blueprint
+        
+        # ADD THIS LINE: Flash a success message to the user.
+        # The second argument is a "category," which we use in the HTML for styling.
+        flash(f"Expense '{new_expense.description}' was added successfully!", 'success')
+        
+        return redirect(url_for('main.home'))
     else:
         return render_template('add_expense_form.html')

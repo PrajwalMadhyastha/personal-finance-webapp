@@ -1,8 +1,7 @@
-# finance_tracker/__init__.py (CORRECT VERSION)
+# finance_tracker/__init__.py
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 
-# Create the extension instance, but don't attach it to an app yet.
 db = SQLAlchemy()
 
 def create_app():
@@ -12,19 +11,17 @@ def create_app():
     # Configure the app
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///finance.db'
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    # ADD THIS LINE: A secret key is required for session-based flash messages.
+    # In production, this should be a long, random string loaded from a config file or environment variable.
+    app.config['SECRET_KEY'] = 'a_very_secret_and_random_key_that_is_not_this_one'
 
-    # Initialize the extension with our app instance.
-    # This is the point where SQLAlchemy gets configured and attaches
-    # helpers like .query to your db.Model classes.
     db.init_app(app)
 
-    # ======================================================================
-    # CRITICAL: Import and register the blueprint *inside* the function.
-    # This ensures that the import happens AFTER db.init_app() is called.
-    # ======================================================================
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
-    # You could also register other blueprints here if you had them.
+    from .reporting_routes import reporting_bp
+    app.register_blueprint(reporting_bp)
 
     return app
