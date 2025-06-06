@@ -10,3 +10,6 @@ __pycache__/
 crash.log
 *.tfvars
 *.tfplan
+# Terraform variable files
+*.tfvars
+*.tfvars.json
