@@ -17,7 +17,6 @@
 
     <h2>My Expenses</h2>
 
-    <!-- Use Jinja2 to check if the 'expenses' list has items -->
     {% if expenses %}
         <table>
             <thead>
@@ -29,21 +28,17 @@
                 </tr>
             </thead>
             <tbody>
-                <!-- Use a Jinja2 for loop to iterate through the expenses -->
                 {% for expense in expenses %}
                     <tr>
                         <td>{{ expense.description }}</td>
-                        <!-- Use a filter to format the amount to 2 decimal places -->
                         <td>₹{{ "%.2f"|format(expense.amount) }}</td>
                         <td>{{ expense.category }}</td>
-                        <!-- Split the timestamp string to show just the date part -->
-                        <td>{{ expense.timestamp.split('T')[0] }}</td>
+                        <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
         </table>
     {% else %}
-        <!-- This block is shown if the 'expenses' list is empty -->
         <p>No expenses logged yet. Time to add one!</p>
     {% endif %}
     
