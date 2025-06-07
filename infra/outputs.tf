@@ -25,3 +25,8 @@ output "sql_database_name" {
   description = "The name of the Azure SQL database."
   value       = azurerm_mssql_database.sql_database.name
 }
+
+output "container_app_url" {
+  description = "The FQDN of the deployed container app."
+  value       = "https://${azurerm_container_app.webapp.latest_revision_fqdn}"
+}
