@@ -1,31 +1,27 @@
 #!/bin/bash
 
-# A script to build, tag, and push the application's Docker image to GHCR.
-# This version pushes the image as a user-scoped package.
-
+# A script to build and push the image to GHCR, using the repository name as the package name.
 set -e
 
 # --- CONFIGURATION ---
-# Update this variable with your GitHub username (all lowercase)
+# The username and the package name are now consistent.
 GITHUB_USERNAME="prajwalmadhyastha"
-# This will be the name of your package on GitHub
-IMAGE_NAME="personal-finance-app"
+IMAGE_NAME="personal-finance-webapp" # This now matches your repo name
 
 
 # --- DYNAMIC PATHS & TAGS ---
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_source[0]}" )" &> /dev/null && pwd )
 PROJECT_ROOT="$SCRIPT_DIR/.."
 GIT_VERSION=$(git rev-parse --short HEAD)
 
 
 # --- SCRIPT LOGIC ---
 echo "--- Building the Docker image: $IMAGE_NAME ---"
-# Build from the project root. Caching is now enabled for faster builds.
 docker build -t $IMAGE_NAME "$PROJECT_ROOT"
 
 
 # --- CONSTRUCT THE FULL GHCR TAG ---
-# Using the simple format: ghcr.io/OWNER/IMAGE_NAME
+# Using the format: ghcr.io/OWNER/IMAGE_NAME
 FULL_IMAGE_NAME="ghcr.io/$GITHUB_USERNAME/$IMAGE_NAME"
 
 echo "\n--- Tagging image for GHCR ---"
