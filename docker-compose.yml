@@ -1,0 +1,32 @@
+# docker-compose.yml
+
+# Specifies the version of the Docker Compose file format. '3.8' is a recent, stable version.
+version: '3.8'
+
+# Defines the services (i.e., containers) that make up your application.
+services:
+  # 'webapp' is the name we are giving our Flask application service.
+  webapp:
+    # A friendly name for the container once it's created.
+    container_name: personal-finance-app
+    
+    # The 'build' instruction tells Docker Compose to build an image.
+    build:
+      # '.' means use the Dockerfile located in the current directory.
+      context: .
+    
+    # Maps port 5000 on your host machine to port 5000 in the container.
+    ports:
+      - "5000:5000"
+      
+    # Loads environment variables from the specified file.
+    env_file:
+      - .env
+      
+    # --- For Faster Development (Hot-Reloading) ---
+    # The 'volumes' instruction maps a directory from your host machine
+    # into the container. This means any changes you make to your Python code
+    # on your Mac will be instantly reflected inside the container, and Flask's
+    # debug mode will automatically restart the server. No image rebuild needed!
+    volumes:
+      - ./finance_tracker:/app/finance_tracker

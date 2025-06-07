@@ -1,0 +1,13 @@
+# .dockerignore
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+.env
+instance/
+*.db
+diagnose.sh
+final_fix.sh

@@ -1,42 +1,48 @@
 # infra/database.tf
 
-# This resource generates a random string to ensure the server name is globally unique.
+# This data source gets your current public IP address.
+# We use a service that specifically returns the IPv4 address.
+data "http" "myip" {
+  url = "https://ipv4.icanhazip.com"
+}
+
+# Generates a random string to ensure the SQL server name is globally unique.
 resource "random_string" "unique" {
   length  = 6
   special = false
   upper   = false
 }
 
-# --- Azure PostgreSQL Flexible Server ---
-resource "azurerm_postgresql_flexible_server" "pg_server" {
-  name                   = "pfa-postgres-server-${random_string.unique.result}"
-  resource_group_name    = azurerm_resource_group.rg.name
-  location               = var.location
-  version                = "14"                      # Specify a PostgreSQL version
-  delegated_subnet_id    = azurerm_subnet.default.id # Deploy into our existing subnet
-  private_dns_zone_id    = azurerm_private_dns_zone.pfa_dns_zone.id
-  administrator_login    = var.db_admin_login
-  administrator_password = var.db_admin_password
+# --- Azure SQL Server (Logical Server) ---
+resource "azurerm_mssql_server" "sql_server" {
+  name                         = "pfa-sql-server-${random_string.unique.result}"
+  resource_group_name          = azurerm_resource_group.rg.name
+  location                     = var.location
+  version                      = "12.0"
+  administrator_login          = var.db_admin_login
+  administrator_login_password = var.db_admin_password
 
-  zone = "1" # Deploy to availability zone 1
-
-  # For a learning project, the smallest Burstable SKU is cost-effective.
-  sku_name = "B_Standard_B1ms"
-
-  storage_mb = 32768 # Minimum storage size (32 GB)
-
-  # Disable public access for security. We will access it from within the VNet.
-  public_network_access_enabled = false
-
-  tags = {
-    environment = "Development"
-    project     = "Personal Finance App"
-  }
+  public_network_access_enabled = true
 }
 
-# --- Azure PostgreSQL Database within the Server ---
-resource "azurerm_postgresql_flexible_server_database" "pg_database" {
+# --- Azure SQL Database ---
+resource "azurerm_mssql_database" "sql_database" {
   name      = "finance_db"
-  server_id = azurerm_postgresql_flexible_server.pg_server.id
-  charset   = "UTF8"
+  server_id = azurerm_mssql_server.sql_server.id
+  sku_name  = "Basic"
+}
+
+# --- Azure SQL Firewall Rules ---
+resource "azurerm_mssql_firewall_rule" "local_access" {
+  name             = "AllowMyIP"
+  server_id        = azurerm_mssql_server.sql_server.id
+  start_ip_address = chomp(data.http.myip.response_body)
+  end_ip_address   = chomp(data.http.myip.response_body)
+}
+
+resource "azurerm_mssql_firewall_rule" "azure_access" {
+  name             = "AllowAllWindowsAzureIps"
+  server_id        = azurerm_mssql_server.sql_server.id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "0.0.0.0"
 }

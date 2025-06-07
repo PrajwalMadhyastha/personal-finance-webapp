@@ -1,27 +1,44 @@
 # finance_tracker/__init__.py
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+import os
+from dotenv import load_dotenv
+import urllib
 
+load_dotenv()
 db = SQLAlchemy()
 
 def create_app():
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__, instance_relative_config=True)
 
-    # Configure the app
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///finance.db'
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # --- Construct the Database URI from Environment Variables ---
+    db_server = os.getenv('DB_SERVER_FQDN')
+    db_name = os.getenv('DB_NAME')
+    db_user = os.getenv('DB_ADMIN_LOGIN')
+    db_password = os.getenv('DB_ADMIN_PASSWORD')
+
+    if not all([db_server, db_name, db_user, db_password]):
+        raise ValueError("Database configuration is missing from environment variables.")
     
-    # ADD THIS LINE: A secret key is required for session-based flash messages.
-    # In production, this should be a long, random string loaded from a config file or environment variable.
-    app.config['SECRET_KEY'] = 'a_very_secret_and_random_key_that_is_not_this_one'
+    # ======================================================================
+    # THE CRITICAL CHANGE: We now use the 'ODBC Driver 18 for SQL Server' driver name.
+    # ======================================================================
+    driver_name = 'ODBC Driver 18 for SQL Server'
+    
+    password_safe = urllib.parse.quote_plus(db_password)
+
+    # The URI now uses the simple driver name we configured in odbcinst.ini
+    db_uri = f"mssql+pyodbc://{db_user}:{password_safe}@{db_server}/{db_name}?driver={urllib.parse.quote_plus(driver_name)}"
+    
+    # --- Configure the App ---
+    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a_default_fallback_secret_key')
 
     db.init_app(app)
 
     from .routes import main_bp
     app.register_blueprint(main_bp)
-
-    from .reporting_routes import reporting_bp
-    app.register_blueprint(reporting_bp)
 
     return app

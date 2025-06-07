@@ -10,12 +10,18 @@ output "resource_group_id" {
   value       = azurerm_resource_group.rg.id
 }
 
-output "postgresql_server_name" {
-  description = "The name of the PostgreSQL flexible server."
-  value       = azurerm_postgresql_flexible_server.pg_server.name
+# --- New Outputs for Azure SQL ---
+output "sql_server_name" {
+  description = "The name of the Azure SQL server."
+  value       = azurerm_mssql_server.sql_server.name
 }
 
-output "postgresql_server_fqdn" {
-  description = "The fully qualified domain name of the PostgreSQL server."
-  value       = azurerm_postgresql_flexible_server.pg_server.fqdn
+output "sql_server_fqdn" {
+  description = "The fully qualified domain name (FQDN) of the Azure SQL server."
+  value       = azurerm_mssql_server.sql_server.fully_qualified_domain_name
+}
+
+output "sql_database_name" {
+  description = "The name of the Azure SQL database."
+  value       = azurerm_mssql_database.sql_database.name
 }
