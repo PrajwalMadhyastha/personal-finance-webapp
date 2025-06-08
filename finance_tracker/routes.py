@@ -48,3 +48,29 @@ def add_expense():
     else:
         current_app.logger.debug("Add expense form page accessed.")
         return render_template('add_expense_form.html')
+    
+@main_bp.route('/delete/<int:expense_id>', methods=['POST'])
+def delete_expense(expense_id):
+    """Deletes an expense from the database."""
+    
+    # db.get_or_404() is a handy Flask-SQLAlchemy shortcut.
+    # It tries to get the object by its primary key (id) or
+    # automatically responds with a 404 Not Found error if it doesn't exist.
+    expense_to_delete = db.get_or_404(Expense, expense_id)
+    
+    try:
+        # Use the SQLAlchemy session to delete the object
+        db.session.delete(expense_to_delete)
+        # Commit the transaction to make the change permanent
+        db.session.commit()
+        # Send a success message to the user on the next page
+        flash(f"Expense '{expense_to_delete.description}' has been deleted.", 'success')
+        current_app.logger.info(f"Deleted expense ID {expense_id}")
+    except Exception as e:
+        # If anything goes wrong, roll back the transaction to be safe
+        db.session.rollback()
+        flash(f"Error deleting expense: {e}", 'error')
+        current_app.logger.error(f"Error deleting expense ID {expense_id}: {e}")
+        
+    # Redirect the user back to the homepage to see the updated list
+    return redirect(url_for('main.home'))
