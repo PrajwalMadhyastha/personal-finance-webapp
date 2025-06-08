@@ -15,23 +15,32 @@
                     <th>Date</th>
                     <th>Actions</th> </tr>
             </thead>
-            <tbody>
-                {% for expense in expenses %}
-                    <tr>
-                        <td>{{ expense.description }}</td>
-                        <td>₹{{ "%.2f"|format(expense.amount) }}</td>
-                        <td>{{ expense.category }}</td>
-                        <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
-                        <td>
-                            <form action="{{ url_for('main.delete_expense', expense_id=expense.id) }}" method="POST" style="display: inline;">
-                                <button type="submit" class="secondary outline" onclick="return confirm('Are you sure you want to delete this expense?');">
-                                    Delete
-                                </button>
-                            </form>
-                        </td>
-                    </tr>
-                {% endfor %}
-            </tbody>
+                <tbody>
+                    {% for expense in expenses %}
+                        <tr>
+                            <td>{{ expense.description }}</td>
+                            <td>₹{{ "%.2f"|format(expense.amount) }}</td>
+                            <td>{{ expense.category }}</td>
+                            <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+
+                                    <a href="{{ url_for('main.edit_expense', expense_id=expense.id) }}"
+                                    class="secondary outline"
+                                    role="button"
+                                    style="margin-bottom: 0;">Edit</a>
+
+                                    <form action="{{ url_for('main.delete_expense', expense_id=expense.id) }}" method="POST" style="margin-bottom: 0;">
+                                        <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this expense?');">
+                                            Delete
+                                        </button>
+                                    </form>
+                                    
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
         </table>
     {% else %}
         <p>No expenses logged yet. Time to add one!</p>

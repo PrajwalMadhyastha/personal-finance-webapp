@@ -74,3 +74,52 @@ def delete_expense(expense_id):
         
     # Redirect the user back to the homepage to see the updated list
     return redirect(url_for('main.home'))
+
+@main_bp.route('/edit/<int:expense_id>', methods=['GET', 'POST'])
+def edit_expense(expense_id):
+    """
+    Handles both displaying the edit form (GET) and updating the expense (POST).
+    """
+    # Get the expense object from the DB or return a 404 error
+    expense_to_edit = db.get_or_404(Expense, expense_id)
+
+    # If the form is being submitted
+    if request.method == 'POST':
+        # Get updated data from the form
+        description = request.form['description']
+        amount_str = request.form['amount']
+        category = request.form['category']
+
+        # Validate the data
+        if not description or not amount_str or not category:
+            flash('Error: All fields are required.', 'error')
+            # Redirect back to the edit page if there's an error
+            return redirect(url_for('main.edit_expense', expense_id=expense_id))
+        
+        try:
+            amount = float(amount_str)
+        except ValueError:
+            flash('Error: Amount must be a valid number.', 'error')
+            return redirect(url_for('main.edit_expense', expense_id=expense_id))
+
+        # Update the object's attributes with the new data
+        expense_to_edit.description = description
+        expense_to_edit.amount = amount
+        expense_to_edit.category = category
+        
+        try:
+            # Commit the session to save the changes to the database
+            db.session.commit()
+            flash(f"Expense '{expense_to_edit.description}' has been updated.", 'success')
+            current_app.logger.info(f"Updated expense ID {expense_id}")
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Error updating expense: {e}", 'error')
+            current_app.logger.error(f"Error updating expense ID {expense_id}: {e}")
+
+        # Redirect back to the homepage after a successful update
+        return redirect(url_for('main.home'))
+
+    # If it's a GET request, just show the pre-populated form
+    else:
+        return render_template('edit_expense.html', expense=expense_to_edit, title="Edit Expense")
