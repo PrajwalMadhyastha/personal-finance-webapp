@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
 import urllib
+import logging
 
 load_dotenv()
 db = SQLAlchemy()
@@ -27,6 +28,17 @@ def create_app():
     driver_name = 'ODBC Driver 18 for SQL Server'
     
     password_safe = urllib.parse.quote_plus(db_password)
+
+    # --- CONFIGURE LOGGING ---
+    # Set the logging level. DEBUG is the most verbose. In production, you'd
+    # likely set this to INFO or WARNING.
+    app.logger.setLevel(logging.DEBUG)
+
+    # Optional: You can add custom handlers and formatters here for file logging
+    # or more complex setups. For now, the default console logger is fine.
+
+    app.logger.info("Personal Finance App startup complete.")
+    # --- END LOGGING CONFIGURATION ---
 
     # The URI now uses the simple driver name we configured in odbcinst.ini
     db_uri = f"mssql+pyodbc://{db_user}:{password_safe}@{db_server}/{db_name}?driver={urllib.parse.quote_plus(driver_name)}"
