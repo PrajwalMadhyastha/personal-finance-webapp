@@ -2,9 +2,9 @@
 
 # This data source gets your current public IP address.
 # We use a service that specifically returns the IPv4 address.
-data "http" "myip" {
-  url = "https://ipv4.icanhazip.com"
-}
+# data "http" "myip" {
+#   url = "https://ipv4.icanhazip.com"
+# }
 
 # Generates a random string to ensure the SQL server name is globally unique.
 resource "random_string" "unique" {
@@ -33,12 +33,12 @@ resource "azurerm_mssql_database" "sql_database" {
 }
 
 # --- Azure SQL Firewall Rules ---
-resource "azurerm_mssql_firewall_rule" "local_access" {
-  name             = "AllowMyIP"
-  server_id        = azurerm_mssql_server.sql_server.id
-  start_ip_address = chomp(data.http.myip.response_body)
-  end_ip_address   = chomp(data.http.myip.response_body)
-}
+# resource "azurerm_mssql_firewall_rule" "local_access" {
+#   name             = "AllowMyIP"
+#   server_id        = azurerm_mssql_server.sql_server.id
+#   start_ip_address = chomp(data.http.myip.response_body)
+#   end_ip_address   = chomp(data.http.myip.response_body)
+# }
 
 resource "azurerm_mssql_firewall_rule" "azure_access" {
   name             = "AllowAllWindowsAzureIps"
