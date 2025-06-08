@@ -1,6 +1,6 @@
 # finance_tracker/routes.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
-from .models import Expense
+from .models import Expense, User
 from . import db
 
 main_bp = Blueprint('main', __name__)
@@ -123,3 +123,43 @@ def edit_expense(expense_id):
     # If it's a GET request, just show the pre-populated form
     else:
         return render_template('edit_expense.html', expense=expense_to_edit, title="Edit Expense")
+    
+@main_bp.route('/register', methods=['GET', 'POST'])
+def register():
+    """Handles user registration."""
+    if request.method == 'POST':
+        username = request.form['username']
+        email = request.form['email']
+        password = request.form['password']
+
+        # Check if username or email already exists
+        user_by_username = User.query.filter_by(username=username).first()
+        user_by_email = User.query.filter_by(email=email).first()
+
+        if user_by_username:
+            flash('Username already exists. Please choose a different one.', 'error')
+            return redirect(url_for('main.register'))
+        
+        if user_by_email:
+            flash('Email already registered. Please use a different one.', 'error')
+            return redirect(url_for('main.register'))
+
+        # Create new user and hash the password
+        new_user = User(username=username, email=email)
+        new_user.set_password(password)
+        
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            flash(f"Account created for {username}! You can now log in.", 'success')
+            current_app.logger.info(f"New user registered: {username}")
+            # For now, redirect to home. Later, this will go to a login page.
+            return redirect(url_for('main.home'))
+        except Exception as e:
+            db.session.rollback()
+            flash(f"An error occurred: {e}", 'error')
+            current_app.logger.error(f"Error registering user {username}: {e}")
+            return redirect(url_for('main.register'))
+
+    # For a GET request, just show the registration form
+    return render_template('register.html', title="Register")

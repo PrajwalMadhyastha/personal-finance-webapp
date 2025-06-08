@@ -5,21 +5,15 @@ from sqlalchemy import inspect # Import the inspector tool from SQLAlchemy
 app = create_app()
 
 def create_database_schema():
-    """Checks if the database schema exists and creates it if it doesn't."""
+    """Ensures all database tables defined in the models are created."""
+    # The 'with app.app_context()' is crucial for database operations
     with app.app_context():
-        # The 'inspector' allows us to look at the database's properties, like table names
-        inspector = inspect(db.engine)
+        print("Ensuring database schema exists...")
         
-        # Check if a table named 'expense' exists.
-        if not inspector.has_table("expense"):
-            print("Database schema not found. Creating tables...")
-            
-            # db.create_all() will create all tables defined in your models
-            # that don't already exist. It's safe to run multiple times.
-            db.create_all()
-            print("Database tables created successfully.")
-        else:
-            print("Database schema already exists. Skipping creation.")
+        # db.create_all() is safe to run multiple times. It will only create
+        # tables that do not already exist in the database.
+        db.create_all()
+        print("Database schema check complete.")
 
 # This block runs the app
 if __name__ == '__main__':

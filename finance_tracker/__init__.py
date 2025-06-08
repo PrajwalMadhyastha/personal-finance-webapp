@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from prometheus_flask_exporter import PrometheusMetrics
 import os
 from dotenv import load_dotenv
+from flask_bcrypt import Bcrypt
 import urllib
 import logging
 
@@ -12,6 +13,7 @@ load_dotenv()
 # Create extension instances
 db = SQLAlchemy()
 metrics = PrometheusMetrics(app=None)
+bcrypt = Bcrypt()
 
 def create_app():
     """Create and configure an instance of the Flask application."""
@@ -42,6 +44,7 @@ def create_app():
     # --- 3. Initialize extensions LAST ---
     db.init_app(app)
     metrics.init_app(app)
+    bcrypt.init_app(app)
 
     # --- 4. Configure logging ---
     app.logger.setLevel(logging.DEBUG)

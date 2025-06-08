@@ -43,3 +43,5 @@ COPY . .
 # --- Final Configuration ---
 EXPOSE 5000
 CMD ["python", "run.py"]
+
+LABEL org.opencontainers.image.source="https://github.com/prajwalmadhyastha/personal-finance-webapp"

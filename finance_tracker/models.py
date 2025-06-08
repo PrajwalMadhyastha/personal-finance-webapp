@@ -1,5 +1,5 @@
 # finance_tracker/models.py
-from . import db
+from . import db, bcrypt
 from datetime import datetime
 
 # --- The Single, Correct Expense Model ---
@@ -71,48 +71,19 @@ class RecurringExpense(Expense):
 
 # --- The User Model ---
 # The User class definition does not need to change.
-class User:
-    # ... (Keep the User class exactly as it was) ...
-    def __init__(self, username, email=None, user_id=None):
-        self.username = str(username)
-        self.email = str(email) if email is not None else None
-        self.user_id = user_id if user_id else self._generate_simple_id()
-        self.expenses = []
+class User(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128), nullable=False)
 
-    def _generate_simple_id(self):
-        return str(abs(hash(self.username + datetime.now().isoformat())))[:8]
-    
-    def add_expense(self, expense_object):
-        if isinstance(expense_object, (Expense, RecurringExpense)):
-            self.expenses.append(expense_object)
-        else:
-            print("Error: Invalid object type. Cannot add to expenses.")
+    def set_password(self, password):
+        """Hashes the password and stores it."""
+        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
 
-    def view_expenses(self):
-        print(f"\n--- Viewing Expenses for User: {self.username} ---")
-        if not self.expenses:
-            print("No expenses recorded yet for this user.")
-            return
-        header = f"{'#':<3} | {'Timestamp':<26} | {'Description':<25} | {'Amount (₹)':<12} | {'Category':<20} | {'Recurrence':<15}"
-        print(header)
-        print("-" * len(header))
-        for idx, expense_obj in enumerate(self.expenses):
-            expense_obj.display(idx + 1)
-        print("-" * len(header))
-
-    def get_total_expenses(self):
-        valid_amounts = [expense.amount for expense in self.expenses if isinstance(expense.amount, (int, float))]
-        if len(valid_amounts) < len(self.expenses):
-            print("Warning: Some expenses had invalid amounts and were not included in the total.")
-        return sum(valid_amounts)
-
-    def get_expenses_by_category(self, category_name):
-        target_category = category_name.strip().title()
-        return [expense for expense in self.expenses if expense.category.title() == target_category]
-
-    def __str__(self):
-        email_str = f", Email: {self.email}" if self.email else ""
-        return f"User(ID: {self.user_id}, Username: {self.username}{email_str}, Expenses: {len(self.expenses)})"
+    def check_password(self, password):
+        """Checks if the provided password matches the stored hash."""
+        return bcrypt.check_password_hash(self.password_hash, password)
 
     def __repr__(self):
-        return f"User(user_id='{self.user_id}', username='{self.username}', email='{self.email}')"
+        return f'<User {self.username}>'
