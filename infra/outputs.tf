@@ -28,5 +28,5 @@ output "sql_database_name" {
 
 output "container_app_url" {
   description = "The FQDN of the deployed container app."
-  value       = "https://${azurerm_container_app.webapp.latest_revision_fqdn}"
+  value       = "https://${azurerm_container_app.webapp.name}.${azurerm_container_app_environment.aca_env.default_domain}"
 }

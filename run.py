@@ -25,4 +25,4 @@ def create_database_schema():
 if __name__ == '__main__':
     # Before running the app, we ensure the database schema is created.
     create_database_schema()
-    app.run(debug=True, host='0.0.0.0')
+    app.run(debug=True, host='0.0.0.0', use_reloader=False)
