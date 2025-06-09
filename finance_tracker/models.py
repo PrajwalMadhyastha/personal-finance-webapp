@@ -1,6 +1,7 @@
 # finance_tracker/models.py
 from . import db, bcrypt
 from datetime import datetime
+from flask_login import UserMixin
 
 # --- The Single, Correct Expense Model ---
 class Expense(db.Model):
@@ -71,7 +72,7 @@ class RecurringExpense(Expense):
 
 # --- The User Model ---
 # The User class definition does not need to change.
-class User(db.Model):
+class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)

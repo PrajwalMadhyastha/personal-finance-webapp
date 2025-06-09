@@ -8,6 +8,7 @@ import os
 from dotenv import load_dotenv
 import urllib
 import logging
+from flask_login import LoginManager
 
 load_dotenv()
 
@@ -16,6 +17,9 @@ db = SQLAlchemy()
 metrics = PrometheusMetrics(app=None)
 bcrypt = Bcrypt()
 migrate = Migrate()
+login_manager = LoginManager()
+login_manager.login_view = 'main.login'
+login_manager.login_message_category = 'info'
 
 def create_app():
     """Create and configure an instance of the Flask application."""
@@ -42,7 +46,8 @@ def create_app():
 
     # Import models to ensure they are registered with SQLAlchemy
     from . import models
-    migrate.init_app(app, db) # Initialize Flask-Migrate
+    migrate.init_app(app, db)
+    login_manager.init_app(app)
 
     # --- Configure logging ---
     app.logger.setLevel(logging.DEBUG)
@@ -53,3 +58,8 @@ def create_app():
     app.register_blueprint(main_bp)
 
     return app
+
+@login_manager.user_loader
+def load_user(user_id):
+    from .models import User
+    return User.query.get(int(user_id))

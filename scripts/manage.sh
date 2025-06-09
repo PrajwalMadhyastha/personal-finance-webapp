@@ -1,16 +1,17 @@
 #!/bin/bash
-# A management script for the application, adapted for a Docker workflow.
+# The single management script for the Flask application, using Docker Compose.
 set -euo pipefail
 
 # --- USAGE FUNCTION ---
 usage() {
-    echo "Usage: $0 {start|stop|logs|db}"
-    echo "  start       : Builds and starts the application via Docker Compose."
-    echo "  stop        : Stops the application."
+    echo "Usage: $0 {start|stop|logs|db|shell}"
+    echo "  start       : Builds and starts the application in the background."
+    echo "  stop        : Stops and removes the application containers."
     echo "  logs        : Tails the application logs."
-    echo "  db <cmd>    : Runs a database migration command inside the container."
-    echo "    db commands: init, migrate, upgrade, downgrade"
-    echo "    Example: ./scripts/manage.sh db migrate 'Add new user field'"
+    echo "  db <cmd>    : Runs a database migration command (e.g., init, migrate, upgrade)."
+    echo "  shell       : Opens a bash shell inside the running webapp container."
+    echo ""
+    echo "DB command example: ./scripts/manage.sh db migrate 'Add notes to expense model'"
     exit 1
 }
 
@@ -21,35 +22,53 @@ fi
 
 COMMAND="$1"
 
-# Ensure docker compose is available
-if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null; then
-    echo "Error: 'docker-compose' or 'docker compose' not found. Please ensure Docker is installed and running."
-    exit 1
-fi
-# Use the available compose command
+# --- DYNAMIC PATHS ---
+# This makes the script runnable from anywhere by finding the project root.
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PROJECT_ROOT="$SCRIPT_DIR/.."
+# Always run docker-compose from the project root where the .yml file is
+cd "$PROJECT_ROOT"
+
+# --- DETECT DOCKER COMPOSE COMMAND ---
+# Find the correct docker compose command ('docker-compose' or 'docker compose')
 COMPOSER="docker-compose"
 if ! command -v docker-compose &> /dev/null; then
-    COMPOSER="docker compose"
+    if docker compose version &> /dev/null; then
+        COMPOSER="docker compose"
+    else
+        echo "Error: Neither 'docker-compose' nor 'docker compose' seems to be installed or working."
+        exit 1
+    fi
 fi
 
+# --- COMMAND ROUTING ---
 case "$COMMAND" in
     start)
-        echo "Starting application via Docker Compose..."
-        # We can call your existing script!
-        ./scripts/run_container.sh up
+        echo "--- Building image (if needed) and starting application ---"
+        # The --build flag rebuilds the image only if there are changes.
+        # The -d flag runs the containers in detached mode (in the background).
+        $COMPOSER up --build -d
+        echo ""
+        echo "Application is running in the background."
+        echo "View logs with: ./scripts/manage.sh logs"
         ;;
+
     stop)
-        echo "Stopping application..."
-        ./scripts/run_container.sh down
+        echo "--- Stopping and removing application containers ---"
+        $COMPOSER down
         ;;
+
     logs)
-        echo "Tailing application logs..."
-        ./scripts/run_container.sh logs
+        echo "--- Tailing application logs (Press Ctrl+C to stop) ---"
+        # The -f flag "follows" the log output.
+        $COMPOSER logs -f webapp
         ;;
+
     db)
         # Handle database migration commands
         DB_COMMAND="${2:-}" # Get the second argument (init, migrate, etc.)
         if [ -z "$DB_COMMAND" ]; then
+            echo "Error: 'db' command requires a subcommand (e.g., init, migrate, upgrade)."
             usage
         fi
         
@@ -63,6 +82,13 @@ case "$COMMAND" in
             $COMPOSER exec webapp flask db "$DB_COMMAND"
         fi
         ;;
+
+    shell)
+        echo "--- Opening a shell inside the webapp container ---"
+        echo "--- Type 'exit' to return to your normal terminal ---"
+        $COMPOSER exec webapp bash
+        ;;
+
     *)
         echo "Error: Unknown command '$COMMAND'"
         usage

@@ -2,10 +2,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
 from .models import Expense, User
 from . import db
+from flask_login import login_user, logout_user, login_required, current_user
 
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
+@login_required
 def home():
     """Renders the homepage and displays expenses."""
     current_app.logger.debug("Home page accessed.") # Use DEBUG for verbose, developer-level info
@@ -13,6 +15,7 @@ def home():
     return render_template('index.html', expenses=expenses)
 
 @main_bp.route('/add_expense', methods=['GET', 'POST'])
+@login_required
 def add_expense():
     if request.method == 'POST':
         description = request.form['description']
@@ -50,6 +53,7 @@ def add_expense():
         return render_template('add_expense_form.html')
     
 @main_bp.route('/delete/<int:expense_id>', methods=['POST'])
+@login_required
 def delete_expense(expense_id):
     """Deletes an expense from the database."""
     
@@ -76,6 +80,7 @@ def delete_expense(expense_id):
     return redirect(url_for('main.home'))
 
 @main_bp.route('/edit/<int:expense_id>', methods=['GET', 'POST'])
+@login_required
 def edit_expense(expense_id):
     """
     Handles both displaying the edit form (GET) and updating the expense (POST).
@@ -124,6 +129,36 @@ def edit_expense(expense_id):
     else:
         return render_template('edit_expense.html', expense=expense_to_edit, title="Edit Expense")
     
+@main_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    # If the user is already logged in, redirect them to the homepage
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
+    
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user = User.query.filter_by(email=email).first()
+        
+        # Check if the user exists and the password is correct
+        if user and user.check_password(password):
+            login_user(user) # This function from Flask-Login handles the session
+            # The 'next' parameter is for redirecting users back to the page they were trying to access
+            next_page = request.args.get('next')
+            flash('Logged in successfully!', 'success')
+            return redirect(next_page or url_for('main.home'))
+        else:
+            flash('Login unsuccessful. Please check email and password.', 'error')
+            
+    return render_template('login.html', title="Log In")
+
+@main_bp.route('/logout')
+@login_required
+def logout():
+    logout_user() # This function from Flask-Login clears the session
+    flash('You have been logged out.', 'info')
+    return redirect(url_for('main.login'))
+    
 @main_bp.route('/register', methods=['GET', 'POST'])
 def register():
     """Handles user registration."""
@@ -153,8 +188,7 @@ def register():
             db.session.commit()
             flash(f"Account created for {username}! You can now log in.", 'success')
             current_app.logger.info(f"New user registered: {username}")
-            # For now, redirect to home. Later, this will go to a login page.
-            return redirect(url_for('main.home'))
+            return redirect(url_for('main.login'))
         except Exception as e:
             db.session.rollback()
             flash(f"An error occurred: {e}", 'error')
