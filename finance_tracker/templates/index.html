@@ -20,7 +20,7 @@
                         <tr>
                             <td>{{ expense.description }}</td>
                             <td>₹{{ "%.2f"|format(expense.amount) }}</td>
-                            <td>{{ expense.category }}</td>
+                            <td>{{ expense.category.name }}</td>
                             <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
                             <td>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">

@@ -1,17 +1,16 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
+<html lang="en" data-theme="light"> <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
 
     <title>{% block title %}My Finance App{% endblock %}</title>
+    
     <style>
-        /* You can still keep minor custom styles if you want */
+        /* Small style adjustments for flashed messages */
         .flashes { list-style: none; padding: 0; margin-top: 1em; }
-        /* Pico's own alert styling is good, but you can override it */
-        .flashes li.success { --pico-background-color: var(--pico-green-200); --pico-border-color: var(--pico-green-400); }
+        .flashes article { margin-bottom: 1em; }
     </style>
 </head>
 <body>
@@ -23,7 +22,9 @@
             </ul>
             <ul>
                 {% if current_user.is_authenticated %}
+                    <li><a href="{{ url_for('main.home') }}">Dashboard</a></li>
                     <li><a href="{{ url_for('main.add_expense') }}">Add Expense</a></li>
+                    <li><a href="{{ url_for('main.manage_categories') }}">Manage Categories</a></li>
                     <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('main.login') }}">Login</a></li>
@@ -31,18 +32,19 @@
                 {% endif %}
             </ul>
         </nav>
-        <hr>
     
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
             {% for category, message in messages %}
-              <article class="{{ category }}">
+              <article class="{{ category }}" aria-invalid="{{ 'true' if category == 'error' else 'false' }}">
                 {{ message }}
               </article>
             {% endfor %}
           {% endif %}
         {% endwith %}
     
+        <hr>
+
         {% block content %}{% endblock %}
 
     </main>
