@@ -1,18 +1,18 @@
 # finance_tracker/routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
+from flask_login import login_user, logout_user, login_required, current_user
 from .models import Expense, User
 from . import db
-from flask_login import login_user, logout_user, login_required, current_user
 
 main_bp = Blueprint('main', __name__)
 
 @main_bp.route('/')
 @login_required
 def home():
-    """Renders the homepage and displays expenses."""
-    current_app.logger.debug("Home page accessed.") # Use DEBUG for verbose, developer-level info
-    expenses = Expense.query.order_by(Expense.timestamp.desc()).all()
+    # Only query expenses for the currently logged-in user
+    expenses = Expense.query.filter_by(owner=current_user).order_by(Expense.timestamp.desc()).all()
     return render_template('index.html', expenses=expenses)
+
 
 @main_bp.route('/add_expense', methods=['GET', 'POST'])
 @login_required
@@ -23,177 +23,108 @@ def add_expense():
         category = request.form['category']
 
         if not description or not amount_str or not category:
-            current_app.logger.warning("Form validation failed: a required field was missing.") # Use WARNING for potential problems
             flash('Error: All fields are required.', 'error')
             return redirect(url_for('main.add_expense'))
-
+        
         try:
             amount = float(amount_str)
         except ValueError:
-            current_app.logger.warning(f"Form validation failed: invalid amount entered ('{amount_str}').")
             flash('Error: Amount must be a valid number.', 'error')
             return redirect(url_for('main.add_expense'))
 
-        new_expense = Expense(description=description, amount=amount, category=category)
+        # Associate the new expense with the current user
+        new_expense = Expense(description=description, amount=amount, category=category, owner=current_user)
         
-        try:
-            db.session.add(new_expense)
-            db.session.commit()
-            # Use INFO for successful, normal operations
-            current_app.logger.info(f"New expense added: '{new_expense.description}' for amount {new_expense.amount}")
-            flash(f"Expense '{new_expense.description}' was added successfully!", 'success')
-        except Exception as e:
-            # Use ERROR for failures that prevent an operation from completing
-            current_app.logger.error(f"Failed to add new expense to database: {e}")
-            flash('Error: Failed to save expense to the database.', 'error')
-
+        db.session.add(new_expense)
+        db.session.commit()
+        flash(f"Expense '{new_expense.description}' was added successfully!", 'success')
         return redirect(url_for('main.home'))
     else:
-        current_app.logger.debug("Add expense form page accessed.")
         return render_template('add_expense_form.html')
-    
-@main_bp.route('/delete/<int:expense_id>', methods=['POST'])
-@login_required
-def delete_expense(expense_id):
-    """Deletes an expense from the database."""
-    
-    # db.get_or_404() is a handy Flask-SQLAlchemy shortcut.
-    # It tries to get the object by its primary key (id) or
-    # automatically responds with a 404 Not Found error if it doesn't exist.
-    expense_to_delete = db.get_or_404(Expense, expense_id)
-    
-    try:
-        # Use the SQLAlchemy session to delete the object
-        db.session.delete(expense_to_delete)
-        # Commit the transaction to make the change permanent
-        db.session.commit()
-        # Send a success message to the user on the next page
-        flash(f"Expense '{expense_to_delete.description}' has been deleted.", 'success')
-        current_app.logger.info(f"Deleted expense ID {expense_id}")
-    except Exception as e:
-        # If anything goes wrong, roll back the transaction to be safe
-        db.session.rollback()
-        flash(f"Error deleting expense: {e}", 'error')
-        current_app.logger.error(f"Error deleting expense ID {expense_id}: {e}")
-        
-    # Redirect the user back to the homepage to see the updated list
-    return redirect(url_for('main.home'))
+
 
 @main_bp.route('/edit/<int:expense_id>', methods=['GET', 'POST'])
 @login_required
 def edit_expense(expense_id):
-    """
-    Handles both displaying the edit form (GET) and updating the expense (POST).
-    """
-    # Get the expense object from the DB or return a 404 error
     expense_to_edit = db.get_or_404(Expense, expense_id)
-
-    # If the form is being submitted
+    
+    # Security Check: If the user is not the owner, forbid access.
+    if expense_to_edit.owner != current_user:
+        abort(403)
+        
     if request.method == 'POST':
-        # Get updated data from the form
-        description = request.form['description']
-        amount_str = request.form['amount']
-        category = request.form['category']
-
-        # Validate the data
-        if not description or not amount_str or not category:
-            flash('Error: All fields are required.', 'error')
-            # Redirect back to the edit page if there's an error
-            return redirect(url_for('main.edit_expense', expense_id=expense_id))
-        
-        try:
-            amount = float(amount_str)
-        except ValueError:
-            flash('Error: Amount must be a valid number.', 'error')
-            return redirect(url_for('main.edit_expense', expense_id=expense_id))
-
-        # Update the object's attributes with the new data
-        expense_to_edit.description = description
-        expense_to_edit.amount = amount
-        expense_to_edit.category = category
-        
-        try:
-            # Commit the session to save the changes to the database
-            db.session.commit()
-            flash(f"Expense '{expense_to_edit.description}' has been updated.", 'success')
-            current_app.logger.info(f"Updated expense ID {expense_id}")
-        except Exception as e:
-            db.session.rollback()
-            flash(f"Error updating expense: {e}", 'error')
-            current_app.logger.error(f"Error updating expense ID {expense_id}: {e}")
-
-        # Redirect back to the homepage after a successful update
+        expense_to_edit.description = request.form['description']
+        expense_to_edit.amount = float(request.form['amount'])
+        expense_to_edit.category = request.form['category']
+        db.session.commit()
+        flash(f"Expense '{expense_to_edit.description}' has been updated.", 'success')
         return redirect(url_for('main.home'))
-
-    # If it's a GET request, just show the pre-populated form
     else:
         return render_template('edit_expense.html', expense=expense_to_edit, title="Edit Expense")
-    
+
+
+@main_bp.route('/delete/<int:expense_id>', methods=['POST'])
+@login_required
+def delete_expense(expense_id):
+    expense_to_delete = db.get_or_404(Expense, expense_id)
+
+    # Security Check: If the user is not the owner, forbid access.
+    if expense_to_delete.owner != current_user:
+        abort(403)
+        
+    db.session.delete(expense_to_delete)
+    db.session.commit()
+    flash(f"Expense '{expense_to_delete.description}' has been deleted.", 'success')
+    return redirect(url_for('main.home'))
+
+
+# --- LOGIN/REGISTER/LOGOUT ROUTES ---
+# (These remain the same as your working version)
+
 @main_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    # If the user is already logged in, redirect them to the homepage
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
-    
     if request.method == 'POST':
         email = request.form['email']
         password = request.form['password']
         user = User.query.filter_by(email=email).first()
-        
-        # Check if the user exists and the password is correct
         if user and user.check_password(password):
-            login_user(user) # This function from Flask-Login handles the session
-            # The 'next' parameter is for redirecting users back to the page they were trying to access
+            login_user(user)
             next_page = request.args.get('next')
             flash('Logged in successfully!', 'success')
             return redirect(next_page or url_for('main.home'))
         else:
             flash('Login unsuccessful. Please check email and password.', 'error')
-            
     return render_template('login.html', title="Log In")
+
 
 @main_bp.route('/logout')
 @login_required
 def logout():
-    logout_user() # This function from Flask-Login clears the session
+    logout_user()
     flash('You have been logged out.', 'info')
     return redirect(url_for('main.login'))
-    
+
+
 @main_bp.route('/register', methods=['GET', 'POST'])
 def register():
-    """Handles user registration."""
+    if current_user.is_authenticated:
+        return redirect(url_for('main.home'))
     if request.method == 'POST':
         username = request.form['username']
         email = request.form['email']
         password = request.form['password']
-
-        # Check if username or email already exists
-        user_by_username = User.query.filter_by(username=username).first()
-        user_by_email = User.query.filter_by(email=email).first()
-
-        if user_by_username:
+        if User.query.filter_by(username=username).first():
             flash('Username already exists. Please choose a different one.', 'error')
             return redirect(url_for('main.register'))
-        
-        if user_by_email:
+        if User.query.filter_by(email=email).first():
             flash('Email already registered. Please use a different one.', 'error')
             return redirect(url_for('main.register'))
-
-        # Create new user and hash the password
         new_user = User(username=username, email=email)
         new_user.set_password(password)
-        
-        try:
-            db.session.add(new_user)
-            db.session.commit()
-            flash(f"Account created for {username}! You can now log in.", 'success')
-            current_app.logger.info(f"New user registered: {username}")
-            return redirect(url_for('main.login'))
-        except Exception as e:
-            db.session.rollback()
-            flash(f"An error occurred: {e}", 'error')
-            current_app.logger.error(f"Error registering user {username}: {e}")
-            return redirect(url_for('main.register'))
-
-    # For a GET request, just show the registration form
+        db.session.add(new_user)
+        db.session.commit()
+        flash(f"Account created for {username}! You can now log in.", 'success')
+        return redirect(url_for('main.login'))
     return render_template('register.html', title="Register")
