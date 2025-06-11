@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Your Accounts{% endblock %}
+
+{% block content %}
+    <div class="grid">
+        <div>
+            <h2>Your Accounts</h2>
+        </div>
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.add_account') }}" role="button">Add New Account</a>
+        </div>
+    </div>
+
+    {% if accounts %}
+    <table>
+        <thead>
+            <tr>
+                <th>Account Name</th>
+                <th>Type</th>
+                <th>Current Balance</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for account in accounts %}
+                <tr>
+                    <td>{{ account.name }}</td>
+                    <td>{{ account.account_type }}</td>
+                    <td>₹{{ "%.2f"|format(account.balance) }}</td>
+                    <td>
+                        <!-- Add Edit/Delete links here in the future -->
+                        <small>N/A</small>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>You haven't set up any accounts yet. Add one to start tracking transactions.</p>
+    {% endif %}
+{% endblock %}

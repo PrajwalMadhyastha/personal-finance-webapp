@@ -1,10 +1,13 @@
 # run.py
 from finance_tracker import create_app, db
-from finance_tracker.models import Expense, User # Import models to use them
+# Corrected import: We now import Transaction, not Expense.
+# It's also good practice to import all models that might be used in CLI commands.
+from finance_tracker.models import Transaction, User, Account 
 from flask_migrate import upgrade
 
 # The create_app function handles all application setup
 app = create_app()
+
 
 # --- Custom CLI Commands ---
 @app.cli.command("reset-db")
@@ -17,17 +20,20 @@ def reset_db_command():
         upgrade()
         print("Database has been reset successfully.")
 
-@app.cli.command("clear-expenses")
-def clear_expenses_command():
-    """A custom command to clear all data from the expense table."""
+
+# This command has been updated to work with the new Transaction model.
+@app.cli.command("clear-transactions")
+def clear_transactions_command():
+    """A custom command to clear all data from the transaction table."""
     with app.app_context():
         try:
-            num_deleted = db.session.query(Expense).delete()
+            # The query now targets the Transaction model.
+            num_deleted = db.session.query(Transaction).delete()
             db.session.commit()
-            print(f"Success: Deleted {num_deleted} old expense(s).")
+            print(f"Success: Deleted {num_deleted} old transaction(s).")
         except Exception as e:
             db.session.rollback()
-            print(f"Error clearing expenses: {e}")
+            print(f"Error clearing transactions: {e}")
 
 
 # This block runs the app for local development

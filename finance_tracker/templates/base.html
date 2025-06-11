@@ -1,18 +1,16 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="light"> <head>
+<html lang="en" data-theme="light">
+<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <title>{% block title %}My Finance App{% endblock %}</title>
-    
     <style>
-        /* Small style adjustments for flashed messages */
         .flashes { list-style: none; padding: 0; margin-top: 1em; }
         .flashes article { margin-bottom: 1em; }
+        .income { color: var(--pico-color-green-600); }
+        .expense { color: var(--pico-color-red-600); }
     </style>
 </head>
 <body>
@@ -20,18 +18,17 @@
     <main class="container">
         <nav>
             <ul>
-                <li><a href="{{ url_for('main.home') }}" class="contrast"><strong>Personal Finance Tracker</strong></a></li>
+                <li><a href="{{ url_for('main.index')}}" class="contrast"><strong>Personal Finance Tracker</strong></a></li>
             </ul>
             <ul>
                 {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
-                    <li><a href="{{ url_for('main.add_expense') }}">Add Expense</a></li>
-                    <li><a href="{{ url_for('main.expenses_list') }}">All Expenses</a></li>
-                    <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
-                    <li><a href="{{ url_for('main.manage_categories') }}">Manage Categories</a></li>
+                    <li><a href="{{ url_for('main.dashboard') }}">Dashboard</a></li>
+                    <li><a href="{{ url_for('main.transactions') }}">Transactions</a></li>
+                    <li><a href="{{ url_for('main.accounts') }}">Accounts</a></li>
+                    <li><a href="{{ url_for('main.manage_categories') }}">Categories</a></li>
                     <li><a href="{{ url_for('main.reports') }}">Reports</a></li>
                     <li><a href="{{ url_for('main.profile') }}">Profile</a></li>
-                    <li><a href="{{ url_for('main.view_incomes') }}">Incomes</a></li> <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
+                    <li><a href="{{ url_for('main.logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('main.login') }}">Login</a></li>
                     <li><a href="{{ url_for('main.register') }}">Register</a></li>
@@ -41,11 +38,13 @@
     
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
+            <div class="flashes">
             {% for category, message in messages %}
-              <article class="{{ category }}" aria-invalid="{{ 'true' if category == 'error' else 'false' }}">
+              <article class="{{ category }}">
                 {{ message }}
               </article>
             {% endfor %}
+            </div>
           {% endif %}
         {% endwith %}
     

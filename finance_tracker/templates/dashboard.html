@@ -3,102 +3,108 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-    <div class="grid">
-        <div>
-            <h2>Dashboard</h2>
-            <p>Welcome back, {{ current_user.username }}!</p>
-        </div>
-        <div>
-            <form method="POST" action="{{ url_for('main.dashboard') }}">
-                <div class="grid">
-                    <div>
-                        <label for="start_date">Start Date</label>
-                        <input type="date" id="start_date" name="start_date" value="{{ start_date }}" required>
-                    </div>
-                    <div>
-                        <label for="end_date">End Date</label>
-                        <input type="date" id="end_date" name="end_date" value="{{ end_date }}" required>
-                    </div>
-                </div>
-                <button type="submit" class="outline">Filter</button>
-            </form>
-        </div>
-    </div>
-
-    <hr>
-    
-    <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
+    <h2>Dashboard</h2>
+    <p>Welcome back, {{ current_user.username }}!</p>
 
     <div class="grid">
         <article>
-            <h5 class="pico-color-green-500">Total Income</h5>
-            <h2>₹{{ "%.2f"|format(total_income) }}</h2>
+            <hgroup>
+                <h4>Your Accounts</h4>
+                <p>A summary of your financial accounts.</p>
+            </hgroup>
+            {% if accounts %}
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account Name</th>
+                            <th>Type</th>
+                            <th>Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td>{{ account.account_type }}</td>
+                            <td>₹{{ "%.2f"|format(account.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p>You haven't added any accounts yet.</p>
+            {% endif %}
+            <a href="{{ url_for('main.add_account') }}" role="button" class="outline">Add New Account</a>
         </article>
-
         <article>
-            <h5 class="pico-color-red-500">Total Expenses</h5>
-            <h2>₹{{ "%.2f"|format(total_expenses) }}</h2>
-        </article>
-
-        <article>
-            <h5>Net Balance</h5>
-            <h2 style="color: {% if net_balance >= 0 %}var(--pico-green-500){% else %}var(--pico-red-500){% endif %};">
-                ₹{{ "%.2f"|format(net_balance) }}
-            </h2>
+            <hgroup>
+                <h4>Expense Breakdown</h4>
+                <p>Your spending by category (all time).</p>
+            </hgroup>
+            <div style="max-height: 300px;">
+                <canvas id="categoryChart"></canvas>
+                <p id="no-chart-data" style="text-align: center; display: none;">No expense data available to build a chart.</p>
+            </div>
         </article>
     </div>
 
     <hr>
 
-    <section>
-        <h3>Expense Breakdown by Category</h3>
-        <div style="max-width: 400px; margin: auto;">
-            <canvas id="categoryChart"></canvas>
-            <p id="no-chart-data" style="text-align: center; display: none;">No expense data available for this date range.</p>
-        </div>
-    </section>
+    <h4>Recent Transactions</h4>
+    {% if transactions %}
+    <table>
+        <tbody>
+        {% for transaction in transactions %}
+            <tr>
+                <td>{{ transaction.description }}</td>
+                <td class="{{ transaction.transaction_type }}">
+                    {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                    ₹{{ "%.2f"|format(transaction.amount) }}
+                </td>
+                <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>No transactions recorded yet.</p>
+    {% endif %}
+    <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
 
 <script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const ctx = document.getElementById('categoryChart').getContext('2d');
-        const noDataMessage = document.getElementById('no-chart-data');
-        let categoryChart;
+document.addEventListener('DOMContentLoaded', function () {
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    const noDataMessage = document.getElementById('no-chart-data');
+    const apiUrl = `{{ url_for('main.transaction_summary_api') }}`;
 
-        function updateChart() {
-            const startDate = document.getElementById('start_date').value;
-            const endDate = document.getElementById('end_date').value;
-            const apiUrl = `{{ url_for('main.expense_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
-
-            fetch(apiUrl)
-                .then(response => response.json())
-                .then(data => {
-                    if (categoryChart) {
-                        categoryChart.destroy();
-                    }
-                    if (data.labels.length > 0) {
-                        ctx.canvas.style.display = 'block';
-                        noDataMessage.style.display = 'none';
-                        categoryChart = new Chart(ctx, {
-                            type: 'pie',
-                            data: {
-                                labels: data.labels,
-                                datasets: [{
-                                    label: 'Expenses in ₹',
-                                    data: data.data,
-                                    backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40', '#c9cbcf'],
-                                    borderWidth: 1
-                                }]
-                            },
-                            options: { responsive: true, plugins: { legend: { position: 'top' } } }
-                        });
-                    } else {
-                        ctx.canvas.style.display = 'none';
-                        noDataMessage.style.display = 'block';
+    fetch(apiUrl)
+        .then(response => response.json())
+        .then(data => {
+            if (data.labels.length > 0) {
+                ctx.canvas.style.display = 'block';
+                noDataMessage.style.display = 'none';
+                new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Expenses in ₹',
+                            data: data.data,
+                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40', '#c9cbcf'],
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { 
+                        responsive: true, 
+                        maintainAspectRatio: false,
+                        plugins: { legend: { position: 'top' } } 
                     }
                 });
-        }
-        
-        updateChart();
-    });
+            } else {
+                ctx.canvas.style.display = 'none';
+                noDataMessage.style.display = 'block';
+            }
+        });
+});
 </script>
 {% endblock %}

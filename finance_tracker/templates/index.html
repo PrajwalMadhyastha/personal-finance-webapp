@@ -1,48 +1,17 @@
 {% extends "base.html" %}
 
-{% block title %}Expense Dashboard{% endblock %}
+{% block title %}Welcome{% endblock %}
 
 {% block content %}
-    <h2>My Expenses</h2>
-
-    {% if expenses %}
-        <table style="width: 100%;">
-            <thead>
-                <tr>
-                    <th>Description</th>
-                    <th>Amount (₹)</th>
-                    <th>Category</th>
-                    <th>Date</th>
-                    <th>Actions</th> </tr>
-            </thead>
-                <tbody>
-                    {% for expense in expenses %}
-                        <tr>
-                            <td>{{ expense.description }}</td>
-                            <td>₹{{ "%.2f"|format(expense.amount) }}</td>
-                            <td>{{ expense.category.name }}</td>
-                            <td>{{ expense.timestamp.strftime('%Y-%m-%d') }}</td>
-                            <td>
-                                <div style="display: flex; gap: 0.5rem; align-items: center;">
-
-                                    <a href="{{ url_for('main.edit_expense', expense_id=expense.id) }}"
-                                    class="secondary outline"
-                                    role="button"
-                                    style="margin-bottom: 0;">Edit</a>
-
-                                    <form action="{{ url_for('main.delete_expense', expense_id=expense.id) }}" method="POST" style="margin-bottom: 0;">
-                                        <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this expense?');">
-                                            Delete
-                                        </button>
-                                    </form>
-                                    
-                                </div>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-        </table>
-    {% else %}
-        <p>No expenses logged yet. Time to add one!</p>
-    {% endif %}
+    <article>
+        <hgroup>
+            <h1>Welcome to Your Personal Finance Tracker</h1>
+            <h2>Take control of your money. Effortlessly.</h2>
+        </hgroup>
+        <p>This application helps you track your income and expenses, understand your spending habits with clear reports, and manage your financial accounts all in one place.</p>
+        <footer>
+            <a href="{{ url_for('main.login') }}" role="button">Log In</a>
+            <a href="{{ url_for('main.register') }}" role="button" class="secondary">Register for an Account</a>
+        </footer>
+    </article>
 {% endblock %}

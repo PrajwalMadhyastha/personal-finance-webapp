@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% block title %}All Transactions{% endblock %}
+
+{% block content %}
+    <div class="grid">
+        <div>
+            <h2>All Transactions</h2>
+        </div>
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
+        </div>
+    </div>
+
+    {% if transactions.items %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th>Type</th>
+                    <th style="text-align: right;">Amount (₹)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in transactions.items %}
+                    <tr>
+                        <td>{{ transaction.transaction_date.strftime('%Y-%m-%d') }}</td>
+                        <td>{{ transaction.description }}</td>
+                        <td>{{ transaction.account.name }}</td>
+                        <td>
+                            {% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                        </td>
+                        <td class="{{ transaction.transaction_type }}">
+                            {{ transaction.transaction_type | capitalize }}
+                        </td>
+                        <td class="{{ transaction.transaction_type }}" style="text-align: right;">
+                            ₹{{ "%.2f"|format(transaction.amount) }}
+                        </td>
+                        <td>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <a href="{{ url_for('main.edit_transaction', transaction_id=transaction.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
+                                <form action="{{ url_for('main.delete_transaction', transaction_id=transaction.id) }}" method="POST" style="margin-bottom: 0;">
+                                    <button type="submit" class="contrast outline" onclick="return confirm('Are you sure?');">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <hr>
+
+        <!-- Pagination navigation -->
+        <nav aria-label="Pagination">
+            <ul>
+                <li>
+                    {% if transactions.has_prev %}
+                        <a href="{{ url_for('main.transactions', page=transactions.prev_num) }}">‹ Previous</a>
+                    {% else %}
+                        <span disabled>‹ Previous</span>
+                    {% endif %}
+                </li>
+                <li>Page {{ transactions.page }} of {{ transactions.pages }}.</li>
+                <li>
+                    {% if transactions.has_next %}
+                        <a href="{{ url_for('main.transactions', page=transactions.next_num) }}">Next ›</a>
+                    {% else %}
+                        <span disabled>Next ›</span>
+                    {% endif %}
+                </li>
+            </ul>
+        </nav>
+
+    {% else %}
+        <p>No transactions recorded yet. <a href="{{ url_for('main.add_transaction') }}">Add your first one!</a></p>
+    {% endif %}
+
+{% endblock %}
