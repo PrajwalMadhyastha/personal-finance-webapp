@@ -12,47 +12,35 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
-    outputs:
-      image_tag: ${{ steps.docker_build.outputs.image_id }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Log in to Azure
-        uses: azure/login@v1
+      - name: Set repository owner to lowercase
+        id: repo_owner_lc
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Log in to the container registry
+        uses: docker/login-action@v3
         with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          registry: ghcr.io
+          username: ${{ steps.repo_owner_lc.outputs.name }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Get ACR Name from Terraform
-        id: tf-out
-        # This step needs terraform, so we add the setup step here too
-        uses: hashicorp/setup-terraform@v2
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ steps.repo_owner_lc.outputs.name }}/personal-finance-webapp
 
-      - name: Initialize Terraform for Outputs
-        run: terraform init
-        working-directory: ./infra
-
-      - name: Get ACR Details
-        id: acr-details
-        run: |
-          cd infra
-          ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
-          echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
-          ACR_NAME=$(terraform output -raw acr_name)
-          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
-      
-      - name: Log in to Azure Container Registry
-        run: az acr login --name ${{ steps.acr-details.outputs.acr_name }}
-        
-      - name: Build and Push Docker Image to ACR
-        id: docker_build
-        run: |
-          IMAGE_TAG="${{ steps.acr-details.outputs.acr_login_server }}/personal-finance-webapp:${{ github.sha }}"
-          docker build -t ${IMAGE_TAG} .
-          docker push ${IMAGE_TAG}
-          echo "image_id=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
 
   deploy:
     runs-on: ubuntu-latest
@@ -62,41 +50,29 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check for infrastructure file changes
-        id: path_filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            infra:
-              - 'infra/**'
+      - name: Set repository owner to lowercase
+        id: repo_owner_lc
+        run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      # --- THIS IS THE MISSING STEP THAT HAS BEEN ADDED BACK ---
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
-        if: steps.path_filter.outputs.infra == 'true' # Only setup terraform if needed
+        with:
+          terraform_wrapper: false
+          
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ./infra
 
-      # --- This step now has the setup before it ---
-      - name: Deploy Infrastructure Changes with Terraform
-        if: steps.path_filter.outputs.infra == 'true'
-        run: |
-          echo "Infrastructure changes detected. Running terraform apply..."
-          cd infra
-          terraform init
-          terraform apply -auto-approve \
-            -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}" \
-            -var="db_admin_login=${{ secrets.DB_ADMIN_LOGIN }}" \
-            -var="db_admin_password=${{ secrets.DB_ADMIN_PASSWORD }}"
-            
-      - name: Deploy Application Update with Azure CLI
-        if: steps.path_filter.outputs.infra != 'true'
-        run: |
-          echo "No infrastructure changes. Using fast app deployment..."
-          az containerapp update \
-            --name pfa-webapp \
-            --resource-group personal-finance-app-rg \
-            --image ${{ needs.build-and-push.outputs.image_tag }}
+      - name: Terraform Apply
+        env:
+          # We only need to pass the required variables now
+          TF_VAR_db_admin_login: ${{ secrets.DB_ADMIN_LOGIN }}
+          TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
+          TF_VAR_github_username: ${{ steps.repo_owner_lc.outputs.name }}
+        run: terraform apply -auto-approve
+        working-directory: ./infra

@@ -30,9 +30,3 @@ variable "github_username" {
   type        = string
   description = "Your GitHub username for pulling images from GHCR."
 }
-
-variable "github_pat" {
-  type        = string
-  description = "A GitHub PAT with read:packages scope to pull the container image."
-  sensitive   = true # This prevents Terraform from showing the PAT in logs
-}
