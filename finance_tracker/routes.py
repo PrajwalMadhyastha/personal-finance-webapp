@@ -101,33 +101,44 @@ def dashboard():
     start_date_str, end_date_str = None, None
 
     if request.method == 'POST':
-        # Get dates from the submitted form
         start_date_str = request.form.get('start_date')
         end_date_str = request.form.get('end_date')
     
-    # If it's a GET request or the form wasn't submitted, use the current month as default
     if not start_date_str or not end_date_str:
         start_date, end_date = get_month_range()
     else:
-        # Convert form strings to datetime objects
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
 
-    # Base query for the current user's expenses within the date range
+    # --- THIS SECTION IS UPDATED ---
+    
+    # 1. Calculate Total Expenses for the period
     user_expenses_query = db.session.query(Expense).filter(
         Expense.owner == current_user,
         Expense.timestamp.between(start_date, end_date + timedelta(days=1))
     )
-    
-    total_expense_count = user_expenses_query.count()
-    total_spent = user_expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0.0
-    recent_expense = user_expenses_query.order_by(Expense.timestamp.desc()).first()
+    total_expenses = user_expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0.0
 
+    # 2. Calculate Total Income for the period
+    user_incomes_query = db.session.query(Income).filter(
+        Income.owner == current_user,
+        Income.timestamp.between(start_date, end_date + timedelta(days=1))
+    )
+    total_income = user_incomes_query.with_entities(func.sum(Income.amount)).scalar() or 0.0
+
+    # 3. Calculate Net Balance
+    net_balance = total_income - total_expenses
+    
+    # We no longer need these queries here as they are handled by the API and other pages
+    # total_expense_count = user_expenses_query.count()
+    # recent_expense = user_expenses_query.order_by(Expense.timestamp.desc()).first()
+
+    # 4. Pass the new values to the template
     return render_template(
         'dashboard.html',
-        total_expense_count=total_expense_count,
-        total_spent=total_spent,
-        recent_expense=recent_expense,
+        total_income=total_income,
+        total_expenses=total_expenses,
+        net_balance=net_balance,
         start_date=start_date.isoformat(),
         end_date=end_date.isoformat()
     )

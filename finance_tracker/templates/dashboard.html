@@ -20,7 +20,7 @@
                         <input type="date" id="end_date" name="end_date" value="{{ end_date }}" required>
                     </div>
                 </div>
-                <button type="submit">Filter</button>
+                <button type="submit" class="outline">Filter</button>
             </form>
         </div>
     </div>
@@ -28,14 +28,23 @@
     <hr>
     
     <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
+
     <div class="grid">
         <article>
-            <h5>Total Spent</h5>
-            <h2>₹{{ "%.2f"|format(total_spent) }}</h2>
+            <h5 class="pico-color-green-500">Total Income</h5>
+            <h2>₹{{ "%.2f"|format(total_income) }}</h2>
         </article>
+
         <article>
-            <h5>Total Expenses</h5>
-            <h2>{{ total_expense_count }}</h2>
+            <h5 class="pico-color-red-500">Total Expenses</h5>
+            <h2>₹{{ "%.2f"|format(total_expenses) }}</h2>
+        </article>
+
+        <article>
+            <h5>Net Balance</h5>
+            <h2 style="color: {% if net_balance >= 0 %}var(--pico-green-500){% else %}var(--pico-red-500){% endif %};">
+                ₹{{ "%.2f"|format(net_balance) }}
+            </h2>
         </article>
     </div>
 
@@ -51,33 +60,24 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Find the canvas element
         const ctx = document.getElementById('categoryChart').getContext('2d');
         const noDataMessage = document.getElementById('no-chart-data');
-        let categoryChart; // Variable to hold the chart instance
+        let categoryChart;
 
-        // A function to fetch data and update the chart
         function updateChart() {
-            // Get the current date range from the input fields
             const startDate = document.getElementById('start_date').value;
             const endDate = document.getElementById('end_date').value;
-            
-            // Construct the dynamic API URL with query parameters
             const apiUrl = `{{ url_for('main.expense_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
 
             fetch(apiUrl)
                 .then(response => response.json())
                 .then(data => {
-                    // Destroy the old chart instance if it exists
                     if (categoryChart) {
                         categoryChart.destroy();
                     }
-
                     if (data.labels.length > 0) {
                         ctx.canvas.style.display = 'block';
                         noDataMessage.style.display = 'none';
-
-                        // Create the new Chart.js pie chart
                         categoryChart = new Chart(ctx, {
                             type: 'pie',
                             data: {
@@ -92,14 +92,12 @@
                             options: { responsive: true, plugins: { legend: { position: 'top' } } }
                         });
                     } else {
-                        // If there's no data, hide the chart and show a message
                         ctx.canvas.style.display = 'none';
                         noDataMessage.style.display = 'block';
                     }
                 });
         }
         
-        // Initial chart load when the page loads
         updateChart();
     });
 </script>
