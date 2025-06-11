@@ -17,6 +17,10 @@ resource "azurerm_container_app" "webapp" {
     name  = "db-password"
     value = var.db_admin_password
   }
+  secret {
+    name  = "ghcr-pat"
+    value = var.github_pat
+  }
 
   ingress {
     external_enabled = true
@@ -25,8 +29,13 @@ resource "azurerm_container_app" "webapp" {
 
     traffic_weight {
       percentage      = 100
-      latest_revision = true # CORRECTED
+      latest_revision = true
     }
+  }
+  registry {
+    server               = "ghcr.io"
+    username             = var.github_username
+    password_secret_name = "ghcr-pat"
   }
 
   template {

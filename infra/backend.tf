@@ -7,6 +7,6 @@ terraform {
     storage_account_name = "pfatfstatefinanceapp"
     container_name       = "tfstate"
     # This will be the name of the state file inside the container
-    key                  = "prod.terraform.tfstate"
+    key = "prod.terraform.tfstate"
   }
 }

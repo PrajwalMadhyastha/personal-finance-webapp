@@ -30,3 +30,14 @@ variable "github_username" {
   type        = string
   description = "Your GitHub username for pulling images from GHCR."
 }
+
+variable "docker_image_to_deploy" {
+  type        = string
+  description = "The full, specific Docker image tag to deploy (e.g., ghcr.io/owner/repo:sha)."
+}
+
+variable "github_pat" {
+  type        = string
+  description = "A GitHub PAT with read:packages scope to pull the container image."
+  sensitive   = true
+}
