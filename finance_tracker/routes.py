@@ -1,5 +1,5 @@
 # finance_tracker/routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify, Response
 from flask_login import login_user, logout_user, login_required, current_user
 from .models import Expense, User, Category, Income
 from datetime import date, datetime, timedelta
@@ -7,8 +7,51 @@ from . import db
 from sqlalchemy import func, extract
 from collections import defaultdict
 from urllib.parse import urlparse
+import io
+import csv
 
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/export/expenses')
+@login_required
+def export_expenses():
+    """Queries all user expenses and returns them as a downloadable CSV file."""
+    
+    current_app.logger.info(f"User {current_user.username} requested an expense export.")
+
+    # 1. Query the database for all expenses for the current user
+    #    Ordering by timestamp is good practice for exports.
+    expenses = Expense.query.filter_by(owner=current_user).order_by(Expense.timestamp.asc()).all()
+
+    # 2. Use an in-memory string stream to build the CSV
+    si = io.StringIO()
+    cw = csv.writer(si)
+
+    # 3. Write the header row
+    headers = ['Description', 'Amount', 'Category', 'Timestamp']
+    cw.writerow(headers)
+
+    # 4. Loop through expenses and write each one as a row
+    for expense in expenses:
+        # We access expense.category.name to get the category's string name
+        row = [
+            expense.description,
+            expense.amount,
+            expense.category.name,
+            expense.timestamp.isoformat() # Use ISO format for a standard timestamp
+        ]
+        cw.writerow(row)
+
+    # 5. Create a Flask Response object
+    # Get the CSV data from the in-memory stream
+    output = si.getvalue()
+    
+    # Create the response with the correct headers
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=my_expenses.csv"}
+    )
 
 @main_bp.route('/reports')
 @login_required

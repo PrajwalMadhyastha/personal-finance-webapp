@@ -4,8 +4,16 @@
 {% block title %}Expense Reports{% endblock %}
 
 {% block content %}
-    <h2>Expense Reports by Month</h2>
-    <p>A summary of your spending, grouped by category for each month.</p>
+     <div class="grid">
+        <div>
+            <h2>Expense Reports by Month</h2>
+            <p>A summary of your spending, grouped by category for each month.</p>
+        </div>
+        <!-- Add the export button -->
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.export_expenses') }}" role="button" class="outline">Export All Expenses as CSV</a>
+        </div>
+    </div>
     <hr>
 
     {% if monthly_summary %}
