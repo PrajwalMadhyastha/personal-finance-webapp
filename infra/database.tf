@@ -24,8 +24,6 @@ resource "azurerm_mssql_database" "sql_database" {
   auto_pause_delay_in_minutes = 60
   min_capacity                = 0.5
   max_size_gb                 = 32
-  # This explicitly disables Geo-redundant backups for this specific database.
-  geo_backup_enabled = false
 }
 # --- Azure SQL Firewall Rule for Azure Services ---
 resource "azurerm_mssql_firewall_rule" "azure_access" {
@@ -33,4 +31,11 @@ resource "azurerm_mssql_firewall_rule" "azure_access" {
   server_id        = azurerm_mssql_server.sql_server.id
   start_ip_address = "0.0.0.0"
   end_ip_address   = "0.0.0.0"
+}
+
+resource "azurerm_mssql_firewall_rule" "dev_ip_range_access" {
+  name             = "AllowDevIPRange"
+  server_id        = azurerm_mssql_server.sql_server.id
+  start_ip_address = "223.185.0.0"
+  end_ip_address   = "223.185.255.255"
 }

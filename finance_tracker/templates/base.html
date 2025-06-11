@@ -22,7 +22,7 @@
             </ul>
             <ul>
                 {% if current_user.is_authenticated %}
-                    <li><a href="{{ url_for('main.home') }}">Dashboard</a></li>
+                    <a href="{{ url_for('main.dashboard') }}">Dashboard</a>
                     <li><a href="{{ url_for('main.add_expense') }}">Add Expense</a></li>
                     <li><a href="{{ url_for('main.manage_categories') }}">Manage Categories</a></li>
                     <li><a href="{{ url_for('main.logout') }}">Logout</a></li>

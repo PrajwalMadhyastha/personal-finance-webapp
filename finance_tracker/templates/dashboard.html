@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+    <h2>Dashboard</h2>
+    <p>Welcome back, {{ current_user.username }}!</p>
+
+    <div class="grid">
+        <article>
+            <h3 class="pico-color-green-500">Total Spent</h3>
+            <h2>₹{{ "%.2f"|format(total_spent) }}</h2>
+        </article>
+
+        <article>
+            <h3 class="pico-color-blue-500">Total Expenses</h3>
+            <h2>{{ total_expense_count }}</h2>
+        </article>
+    </div>
+
+    <hr>
+
+    <h3>Most Recent Expense</h3>
+    {% if recent_expense %}
+        <article>
+            <p>
+                <strong>Description:</strong> {{ recent_expense.description }}<br>
+                <strong>Amount:</strong> ₹{{ "%.2f"|format(recent_expense.amount) }}<br>
+                <strong>Category:</strong> {{ recent_expense.category.name }}<br>
+                <strong>Date:</strong> {{ recent_expense.timestamp.strftime('%Y-%m-%d') }}
+            </p>
+        </article>
+    {% else %}
+        <p>No expenses recorded yet. <a href="{{ url_for('main.add_expense') }}">Add your first one!</a></p>
+    {% endif %}
+
+{% endblock %}

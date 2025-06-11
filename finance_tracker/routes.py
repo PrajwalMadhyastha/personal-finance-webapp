@@ -3,17 +3,42 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from .models import Expense, User, Category # Import new Category model
 from . import db
+from sqlalchemy import func
 
 main_bp = Blueprint('main', __name__)
 
-# --- Main Routes ---
+@main_bp.route('/dashboard')
+@login_required
+def dashboard():
+    """Renders the main dashboard with summary statistics."""
+    current_app.logger.info(f"User {current_user.username} accessed the dashboard.")
+    
+    # Base query for the current user's expenses
+    user_expenses_query = db.session.query(Expense).filter_by(owner=current_user)
+    
+    # 2. Calculate statistics using efficient database queries
+    total_expense_count = user_expenses_query.count()
+    
+    # func.sum() tells SQLAlchemy to perform a SUM() aggregation in the database
+    # .scalar() returns the single value result of the query
+    total_spent = user_expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0.0
 
+    # Get the single most recent expense
+    recent_expense = user_expenses_query.order_by(Expense.timestamp.desc()).first()
+
+    return render_template(
+        'dashboard.html',
+        total_expense_count=total_expense_count,
+        total_spent=total_spent,
+        recent_expense=recent_expense
+    )
+
+# --- UPDATE: The old home route now just redirects to the dashboard ---
 @main_bp.route('/')
 @login_required
 def home():
-    """Renders the homepage and displays expenses for the current user."""
-    expenses = Expense.query.filter_by(owner=current_user).order_by(Expense.timestamp.desc()).all()
-    return render_template('index.html', expenses=expenses)
+    """Redirects to the main dashboard."""
+    return redirect(url_for('main.dashboard'))
 
 # --- Expense Routes ---
 
