@@ -8,30 +8,69 @@
 
     <div class="grid">
         <article>
-            <h3 class="pico-color-green-500">Total Spent</h3>
+            <h4>Total Spent</h4>
             <h2>₹{{ "%.2f"|format(total_spent) }}</h2>
         </article>
 
         <article>
-            <h3 class="pico-color-blue-500">Total Expenses</h3>
+            <h4>Total Expenses</h4>
             <h2>{{ total_expense_count }}</h2>
         </article>
     </div>
 
     <hr>
 
-    <h3>Most Recent Expense</h3>
-    {% if recent_expense %}
-        <article>
-            <p>
-                <strong>Description:</strong> {{ recent_expense.description }}<br>
-                <strong>Amount:</strong> ₹{{ "%.2f"|format(recent_expense.amount) }}<br>
-                <strong>Category:</strong> {{ recent_expense.category.name }}<br>
-                <strong>Date:</strong> {{ recent_expense.timestamp.strftime('%Y-%m-%d') }}
-            </p>
-        </article>
-    {% else %}
-        <p>No expenses recorded yet. <a href="{{ url_for('main.add_expense') }}">Add your first one!</a></p>
-    {% endif %}
+    <section>
+        <h3>Expense Breakdown by Category</h3>
+        <div style="max-width: 400px; margin: auto;">
+            <canvas id="categoryChart"></canvas>
+        </div>
+    </section>
 
+<script>
+    // This ensures the script runs after the full page is loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        // Find the canvas element
+        const ctx = document.getElementById('categoryChart').getContext('2d');
+
+        // Use the fetch API to get data from our new API endpoint
+        fetch("{{ url_for('main.expense_summary_api') }}")
+            .then(response => response.json())
+            .then(data => {
+                // Check if there is data to display
+                if (data.labels.length > 0) {
+                    // Create the new Chart.js pie chart
+                    new Chart(ctx, {
+                        type: 'pie', // You can also use 'doughnut'
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                label: 'Expenses in ₹',
+                                data: data.data,
+                                // You can add colors here or let Chart.js pick them
+                                backgroundColor: [
+                                    '#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', 
+                                    '#9966ff', '#ff9f40', '#c9cbcf'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                }
+                            }
+                        }
+                    });
+                } else {
+                    // Optional: If there's no data, you can hide the chart's container
+                    // or display a message.
+                    ctx.canvas.style.display = 'none';
+                    // You could also add a <p> tag here saying "No data for chart".
+                }
+            });
+    });
+</script>
 {% endblock %}

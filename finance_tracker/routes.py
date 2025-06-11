@@ -1,9 +1,10 @@
 # finance_tracker/routes.py
-from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort
-from flask_login import login_required, current_user
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
+from flask_login import login_user, logout_user, login_required, current_user
 from .models import Expense, User, Category # Import new Category model
 from . import db
 from sqlalchemy import func
+from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
 
@@ -136,18 +137,31 @@ def manage_categories():
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('main.home'))
+    
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
         user = User.query.filter_by(email=email).first()
+        
         if user and user.check_password(password):
             login_user(user)
-            next_page = request.args.get('next')
-            flash('Logged in successfully!', 'success')
-            return redirect(next_page or url_for('main.home'))
+            
+            # Now, get the 'next' URL from the hidden form field
+            next_page = request.form.get('next')
+            
+            # --- SECURITY CHECK ---
+            # It's important to validate the redirect URL to prevent attackers
+            # from redirecting users to malicious sites. This simple check
+            # ensures the redirect stays within our own application.
+            if next_page and urlparse(next_page).netloc == '':
+                return redirect(next_page)
+            else:
+                return redirect(url_for('main.dashboard'))
         else:
             flash('Login unsuccessful. Please check email and password.', 'error')
-    return render_template('login.html', title="Log In")
+
+    next_page = request.args.get('next')
+    return render_template('login.html', title="Log In", next_page=next_page)
 
 
 @main_bp.route('/logout')
@@ -180,3 +194,31 @@ def register():
         flash(f"Account created for {username}! You can now log in.", 'success')
         return redirect(url_for('main.login'))
     return render_template('register.html', title="Register")
+
+@main_bp.route('/api/expense_summary')
+@login_required
+def expense_summary_api():
+    """Provides expense summary data as a JSON object."""
+    
+    # This query joins Expense and Category, filters for the current user,
+    # groups by category name, and sums the amounts for each category.
+    summary_query = db.session.query(
+        Category.name,
+        func.sum(Expense.amount).label('total_amount')
+    ).join(Expense, Expense.category_id == Category.id).filter(
+        Expense.owner == current_user
+    ).group_by(
+        Category.name
+    ).order_by(
+        func.sum(Expense.amount).desc()
+    ).all()
+
+    # The query returns a list of tuples, e.g., [('Food', 500.0), ('Transport', 250.50)]
+    # We need to process this into the format Chart.js expects.
+    labels = [row[0] for row in summary_query]
+    data = [float(row[1]) for row in summary_query]
+    
+    return jsonify({
+        "labels": labels,
+        "data": data
+    })
