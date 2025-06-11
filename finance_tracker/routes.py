@@ -9,6 +9,49 @@ from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/profile')
+@login_required
+def profile():
+    """Renders the user profile page."""
+    return render_template('profile.html', title="User Profile")
+
+
+@main_bp.route('/change_password', methods=['POST'])
+@login_required
+def change_password():
+    """Processes the change password form submission."""
+    current_password = request.form.get('current_password')
+    new_password = request.form.get('new_password')
+    confirm_new_password = request.form.get('confirm_new_password')
+
+    # 1. Verify the user's current password is correct
+    if not current_user.check_password(current_password):
+        flash('Your current password was incorrect. Please try again.', 'error')
+        return redirect(url_for('main.profile'))
+
+    # 2. Verify the new password and confirmation match
+    if new_password != confirm_new_password:
+        flash('The new password and confirmation password do not match.', 'error')
+        return redirect(url_for('main.profile'))
+    
+    # Optional: Add password strength validation here if desired
+    if len(new_password) < 8:
+        flash('New password must be at least 8 characters long.', 'error')
+        return redirect(url_for('main.profile'))
+
+    # 3. If all checks pass, set the new password and save it
+    try:
+        current_user.set_password(new_password)
+        db.session.commit()
+        flash('Your password has been updated successfully.', 'success')
+        current_app.logger.info(f"User {current_user.username} successfully changed their password.")
+    except Exception as e:
+        db.session.rollback()
+        flash('An error occurred while updating your password. Please try again.', 'error')
+        current_app.logger.error(f"Error changing password for user {current_user.username}: {e}")
+
+    return redirect(url_for('main.profile'))
+
 @main_bp.route('/edit_income/<int:income_id>', methods=['GET', 'POST'])
 @login_required
 def edit_income(income_id):
