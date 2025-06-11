@@ -21,7 +21,7 @@ provider "azurerm" {
 
 # --- 2. Resource Definition ---
 module "resource_group" {
-  source = "./modules/resource_group" # Path to the module directory
+  source = "./modules/resource_group"
 
   # Pass values from your root variables.tf into the module's variables
   rg_name  = var.resource_group_name
