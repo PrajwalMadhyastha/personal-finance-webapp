@@ -1,5 +1,4 @@
 # infra/backend.tf
-
 terraform {
   backend "azurerm" {
     # Replace these names with the ones you used in the 'az' commands above
