@@ -1,13 +1,50 @@
 # finance_tracker/routes.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Expense, User, Category
+from .models import Expense, User, Category, Income
 from datetime import date, datetime, timedelta
 from . import db
 from sqlalchemy import func
 from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/incomes')
+@login_required
+def view_incomes():
+    """Renders a page listing all incomes for the current user."""
+    incomes = Income.query.filter_by(owner=current_user).order_by(Income.timestamp.desc()).all()
+    return render_template('incomes.html', incomes=incomes)
+
+@main_bp.route('/add_income', methods=['GET', 'POST'])
+@login_required
+def add_income():
+    """Handles adding a new income record."""
+    if request.method == 'POST':
+        description = request.form.get('description')
+        amount_str = request.form.get('amount')
+
+        if not description or not amount_str:
+            flash('Error: All fields are required.', 'error')
+            return redirect(url_for('main.add_income'))
+        
+        try:
+            amount = float(amount_str)
+            if amount <= 0:
+                flash('Error: Amount must be a positive number.', 'error')
+                return redirect(url_for('main.add_income'))
+        except ValueError:
+            flash('Error: Amount must be a valid number.', 'error')
+            return redirect(url_for('main.add_income'))
+
+        new_income = Income(description=description, amount=amount, owner=current_user)
+        db.session.add(new_income)
+        db.session.commit()
+        flash('Income record added successfully!', 'success')
+        return redirect(url_for('main.view_incomes'))
+
+    # For a GET request, just show the form
+    return render_template('add_income_form.html')
 
 def get_month_range(today=None):
     """Returns the first and last day of the current month."""

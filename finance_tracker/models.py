@@ -42,10 +42,8 @@ class User(db.Model, UserMixin):
 
     # Relationship to expenses this user owns
     expenses = db.relationship('Expense', backref='owner', lazy=True)
-    
-    # --- ADD THIS RELATIONSHIP ---
-    # Relationship to categories this user has created
     categories = db.relationship('Category', backref='creator', lazy=True)
+    incomes = db.relationship('Income', backref='owner', lazy=True)
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -55,3 +53,15 @@ class User(db.Model, UserMixin):
 
     def __repr__(self):
         return f'<User {self.username}>'
+    
+class Income(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Float, nullable=False)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    
+    # Foreign key to link to the user who owns this income
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+
+    def __repr__(self):
+        return f'<Income {self.description}>'
