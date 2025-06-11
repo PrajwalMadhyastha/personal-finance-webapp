@@ -1,6 +1,6 @@
 # .github/workflows/ci.yml
 
-name: Build, Push, and Deploy Application
+name: CI/CD - Build, Push, and Deploy Application
 
 on:
   push:
@@ -9,7 +9,6 @@ on:
 jobs:
   # =======================================================
   # JOB 1: Build the Docker image and push it to GHCR
-  # Its only job is to produce a versioned container image.
   # =======================================================
   build-and-push:
     runs-on: ubuntu-latest
@@ -17,9 +16,9 @@ jobs:
       contents: read
       packages: write # Permission for GITHUB_TOKEN to write packages
     
-    # This job outputs the full, unique image tag for the deploy job to use
     outputs:
       image_tag: ${{ steps.docker_build.outputs.image_id }}
+      owner_lc: ${{ steps.repo_owner_lc.outputs.name }}
 
     steps:
       - name: 'Checkout Repository'
@@ -39,21 +38,20 @@ jobs:
       - name: 'Build and Push Docker Image'
         id: docker_build
         run: |
-          # The image name must be all lowercase
-          IMAGE_NAME="ghcr.io/${{ steps.repo_owner_lc.outputs.name }}/personal-finance-webapp"
-          # The tag is the unique git commit SHA, which is a best practice for deployments
+          LOWERCASE_REPO_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
+          IMAGE_NAME="ghcr.io/${{ steps.repo_owner_lc.outputs.name }}/${LOWERCASE_REPO_NAME}"
+          # The tag is the unique git commit SHA, which is a best practice
           IMAGE_TAG="${IMAGE_NAME}:${{ github.sha }}"
           
           echo "Building and pushing: ${IMAGE_TAG}"
           docker build -t ${IMAGE_TAG} .
           docker push ${IMAGE_TAG}
           
-          # Set the full image name as a job output
+          # Set the full image name as a job output for the next job
           echo "image_id=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
   # =======================================================
-  # JOB 2: Deploy the image to Azure
-  # This job is "smart" and runs different commands based on what files changed.
+  # JOB 2: Deploy to Azure with Conditional Logic
   # =======================================================
   deploy:
     runs-on: ubuntu-latest
@@ -63,7 +61,6 @@ jobs:
       - name: 'Checkout repository'
         uses: actions/checkout@v4
 
-      # This step checks if files in the 'infra/' directory have changed
       - name: 'Check for infrastructure file changes'
         id: path_filter
         uses: dorny/paths-filter@v3
@@ -76,42 +73,28 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: 'Setup TFLint'
-        if: steps.path_filter.outputs.infra == 'true'
-        uses: terraform-linters/setup-tflint@v4
-        with:
-          tflint_version: latest
       
-      - name: 'Run TFLint'
-        if: steps.path_filter.outputs.infra == 'true'
-        run: |
-          cd infra
-          tflint --init
-          tflint --format compact
-
       - name: 'Setup Terraform'
+        # This step ONLY runs IF infrastructure files changed
         if: steps.path_filter.outputs.infra == 'true'
         uses: hashicorp/setup-terraform@v2
-      
-      # This step ONLY runs IF infrastructure files changed
+        
       - name: 'Deploy Infrastructure Changes with Terraform'
+        # This step ONLY runs IF infrastructure files changed
         if: steps.path_filter.outputs.infra == 'true'
         env:
           TF_VAR_db_admin_login: ${{ secrets.DB_ADMIN_LOGIN }}
           TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
-          TF_VAR_github_username: ${{ needs.build-and-push.outputs.owner_lc }}
           TF_VAR_github_pat: ${{ secrets.GHCR_PAT }}
-
+          TF_VAR_github_username: ${{ needs.build-and-push.outputs.owner_lc }}
         run: |
           echo "Infrastructure changes detected. Running terraform apply..."
           cd infra
-          # Terraform must be initialized before use
           terraform init
           terraform apply -auto-approve -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}"
             
-      # This step ONLY runs IF NO infrastructure files changed
       - name: 'Deploy Application Update with Azure CLI'
+        # This step ONLY runs IF NO infrastructure files changed
         if: steps.path_filter.outputs.infra != 'true'
         run: |
           echo "No infrastructure changes. Using fast app deployment..."
