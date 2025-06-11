@@ -12,29 +12,28 @@ variable "location" {
   default     = "Central India"
 }
 
-# infra/variables.tf
-
 variable "db_admin_login" {
   type        = string
-  description = "The admin username for the PostgreSQL server."
-  sensitive   = true # Marks the variable as sensitive in logs/outputs
+  description = "The admin username for the SQL server."
+  sensitive   = true
 }
 
 variable "db_admin_password" {
   type        = string
-  description = "The admin password for the PostgreSQL server."
+  description = "The admin password for the SQL server."
   sensitive   = true
 }
 
-variable "github_username" {
-  type        = string
-  description = "Your GitHub username for pulling images from GHCR."
-}
-
+# This variable will be provided by the CI/CD pipeline
 variable "docker_image_to_deploy" {
   type        = string
   description = "The full, specific Docker image tag to deploy (e.g., ghcr.io/owner/repo:sha)."
-  default     = "ghcr.io/prajwalmadhyastha/personal-finance-webapp:main"
+}
+
+# These variables are for GHCR authentication
+variable "github_username" {
+  type        = string
+  description = "Your GitHub username for pulling images from GHCR."
 }
 
 variable "github_pat" {

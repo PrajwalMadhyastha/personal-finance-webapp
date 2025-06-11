@@ -10,9 +10,10 @@ resource "azurerm_container_app_environment" "aca_env" {
 resource "azurerm_container_app" "webapp" {
   name                         = "pfa-webapp"
   container_app_environment_id = azurerm_container_app_environment.aca_env.id
-  resource_group_name          = module.resource_group.name
+  resource_group_name          = module.resource_group.name # Use the module output
   revision_mode                = "Single"
 
+  # Define secrets for the DB password AND your GitHub PAT
   secret {
     name  = "db-password"
     value = var.db_admin_password
@@ -26,7 +27,6 @@ resource "azurerm_container_app" "webapp" {
     external_enabled = true
     target_port      = 5000
     transport        = "auto"
-
     traffic_weight {
       percentage      = 100
       latest_revision = true
