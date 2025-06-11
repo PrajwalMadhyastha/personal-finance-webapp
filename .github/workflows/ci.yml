@@ -121,4 +121,7 @@ jobs:
           az containerapp update \
             --name pfa-webapp \
             --resource-group personal-finance-app-rg \
-            --image ${{ needs.build-and-push.outputs.image_tag }}
+            --image ${{ needs.build-and-push.outputs.image_tag }} \
+            --registry-server ghcr.io \
+            --registry-username ${{ needs.build-and-push.outputs.owner_lc }} \
+            --registry-password ${{ secrets.GHCR_PAT }}
