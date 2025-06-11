@@ -41,7 +41,7 @@ resource "azurerm_container_app" "webapp" {
   template {
     container {
       name   = "pfa-webapp-container"
-      image  = "ghcr.io/${var.github_username}/personal-finance-webapp:main"
+      image  = var.docker_image_to_deploy
       cpu    = 0.25
       memory = "0.5Gi"
 

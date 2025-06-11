@@ -77,6 +77,19 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: 'Setup TFLint'
+        if: steps.path_filter.outputs.infra == 'true'
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+      
+      - name: 'Run TFLint'
+        if: steps.path_filter.outputs.infra == 'true'
+        run: |
+          cd infra
+          tflint --init
+          tflint --format compact
+
       - name: 'Setup Terraform'
         if: steps.path_filter.outputs.infra == 'true'
         uses: hashicorp/setup-terraform@v2
