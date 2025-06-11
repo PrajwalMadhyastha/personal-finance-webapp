@@ -1,0 +1,32 @@
+<!-- finance_tracker/templates/reports.html -->
+{% extends "base.html" %}
+
+{% block title %}Expense Reports{% endblock %}
+
+{% block content %}
+    <h2>Expense Reports by Month</h2>
+    <p>A summary of your spending, grouped by category for each month.</p>
+    <hr>
+
+    {% if monthly_summary %}
+        <!-- Outer loop iterates through months -->
+        {% for month, categories in monthly_summary.items() %}
+            <details open>
+                <!-- Use strptime and strftime to format the month name beautifully -->
+                <summary><strong>{{ month }}</strong></summary>
+
+                <!-- Inner loop displays categories and totals for that month -->
+                <ul>
+                    {% for category_name, total_amount in categories %}
+                        <li>
+                            {{ category_name }}: <strong>₹{{ "%.2f"|format(total_amount) }}</strong>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </details>
+        {% endfor %}
+    {% else %}
+        <p>No expense data available to generate reports.</p>
+    {% endif %}
+
+{% endblock %}

@@ -4,10 +4,50 @@ from flask_login import login_user, logout_user, login_required, current_user
 from .models import Expense, User, Category, Income
 from datetime import date, datetime, timedelta
 from . import db
-from sqlalchemy import func
+from sqlalchemy import func, extract
+from collections import defaultdict
 from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/reports')
+@login_required
+def reports():
+    """Renders a page with monthly expense reports grouped by category."""
+    current_app.logger.info(f"User {current_user.username} accessed reports page.")
+
+    # The SQLAlchemy query remains the same
+    year_expr = extract('year', Expense.timestamp)
+    month_expr = extract('month', Expense.timestamp)
+    sum_expr = func.sum(Expense.amount)
+
+    monthly_data_query = db.session.query(
+        year_expr.label('year'),
+        month_expr.label('month'),
+        Category.name.label('category_name'),
+        sum_expr.label('total_amount')
+    ).join(Category).filter(
+        Expense.owner == current_user
+    ).group_by(
+        year_expr,
+        month_expr,
+        Category.name
+    ).order_by(
+        db.desc(year_expr),
+        db.desc(month_expr)
+    ).all()
+
+    # --- THIS LOGIC IS CHANGED ---
+    # Process the results into a nested dictionary with a formatted month name as the key
+    monthly_summary = defaultdict(list)
+    for row in monthly_data_query:
+        # Create a Python datetime object from the year and month
+        month_object = datetime(year=row.year, month=row.month, day=1)
+        # Format it into a user-friendly string like "June 2025"
+        month_key = month_object.strftime('%B %Y')
+        monthly_summary[month_key].append((row.category_name, row.total_amount))
+
+    return render_template('reports.html', monthly_summary=monthly_summary)
 
 @main_bp.route('/expenses')
 @login_required
