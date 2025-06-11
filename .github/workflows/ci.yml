@@ -13,7 +13,6 @@ jobs:
       contents: read
       packages: write
     
-    # This job now outputs the full image name and tag for the next job to use
     outputs:
       image_tag: ${{ steps.docker_build.outputs.image_id }}
 
@@ -21,41 +20,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: 'Log in to Azure Container Registry'
+      - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 'Get ACR Details'
+      - name: Get ACR Name from Terraform
         id: tf-out
+        # This step needs terraform, so we add the setup step here too
+        uses: hashicorp/setup-terraform@v2
+
+      - name: Initialize Terraform for Outputs
+        run: terraform init
+        working-directory: ./infra
+
+      - name: Get ACR Details
+        id: acr-details
         run: |
           cd infra
-          terraform init -backend-config=backend.conf # Assuming you have a backend config file
           ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
           echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
-
-      - name: 'Log in to ACR with Docker'
-        run: az acr login --name ${{ fromJson(steps.tf-out.outputs.acr_login_server).name }}
+          ACR_NAME=$(terraform output -raw acr_name)
+          echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
       
-      - name: 'Build and Push Docker Image to ACR'
+      - name: Log in to Azure Container Registry
+        run: az acr login --name ${{ steps.acr-details.outputs.acr_name }}
+        
+      - name: Build and Push Docker Image to ACR
         id: docker_build
         run: |
-          IMAGE_TAG="${{ steps.tf-out.outputs.acr_login_server }}/personal-finance-webapp:${{ github.sha }}"
+          IMAGE_TAG="${{ steps.acr-details.outputs.acr_login_server }}/personal-finance-webapp:${{ github.sha }}"
           docker build -t ${IMAGE_TAG} .
           docker push ${IMAGE_TAG}
           echo "image_id=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
-
   deploy:
     runs-on: ubuntu-latest
-    # This job now depends on the image being successfully built
     needs: build-and-push
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # --- THIS NEW STEP CHECKS FOR CHANGES ---
       - name: Check for infrastructure file changes
         id: path_filter
         uses: dorny/paths-filter@v3
@@ -64,12 +70,17 @@ jobs:
             infra:
               - 'infra/**'
 
-      - name: 'Log in to Azure'
+      - name: Log in to Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
-      # --- THIS STEP ONLY RUNS IF INFRA FILES CHANGED ---
+      # --- THIS IS THE MISSING STEP THAT HAS BEEN ADDED BACK ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        if: steps.path_filter.outputs.infra == 'true' # Only setup terraform if needed
+
+      # --- This step now has the setup before it ---
       - name: Deploy Infrastructure Changes with Terraform
         if: steps.path_filter.outputs.infra == 'true'
         run: |
@@ -81,7 +92,6 @@ jobs:
             -var="db_admin_login=${{ secrets.DB_ADMIN_LOGIN }}" \
             -var="db_admin_password=${{ secrets.DB_ADMIN_PASSWORD }}"
             
-      # --- THIS STEP ONLY RUNS IF *NO* INFRA FILES CHANGED ---
       - name: Deploy Application Update with Azure CLI
         if: steps.path_filter.outputs.infra != 'true'
         run: |
