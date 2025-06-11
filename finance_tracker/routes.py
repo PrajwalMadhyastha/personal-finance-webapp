@@ -9,6 +9,27 @@ from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/expenses')
+@login_required
+def expenses_list():
+    """Renders the paginated list of all expenses for the current user."""
+    # Get the current page number from the URL's query string (e.g., /expenses?page=2)
+    # Default to page 1 if not specified, and ensure it's an integer.
+    page = request.args.get('page', 1, type=int)
+    
+    # Instead of .all(), we use .paginate().
+    # This creates a pagination object. We'll show 10 items per page.
+    expenses_pagination = Expense.query.filter_by(
+        owner=current_user
+    ).order_by(
+        Expense.timestamp.desc()
+    ).paginate(
+        page=page, per_page=10, error_out=False
+    )
+    
+    # We pass this pagination object directly to the template.
+    return render_template('expenses.html', expenses_pagination=expenses_pagination)
+
 @main_bp.route('/profile')
 @login_required
 def profile():
