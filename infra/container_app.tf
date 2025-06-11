@@ -2,15 +2,15 @@
 
 resource "azurerm_container_app_environment" "aca_env" {
   name                       = "pfa-aca-environment"
-  location                   = var.location
-  resource_group_name        = azurerm_resource_group.rg.name
+  location                   = module.resource_group.location
+  resource_group_name        = module.resource_group.name
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
 }
 
 resource "azurerm_container_app" "webapp" {
   name                         = "pfa-webapp"
   container_app_environment_id = azurerm_container_app_environment.aca_env.id
-  resource_group_name          = azurerm_resource_group.rg.name
+  resource_group_name          = module.resource_group.name
   revision_mode                = "Single"
 
   secret {

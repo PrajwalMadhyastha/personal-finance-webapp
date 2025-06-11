@@ -15,8 +15,15 @@ provider "azurerm" {
 }
 
 # --- 2. Resource Definition ---
-# This resource group now uses variables for its name and location.
-resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
+module "resource_group" {
+  source = "./modules/resource_group" # Path to the module directory
+
+  # Pass values from your root variables.tf into the module's variables
+  rg_name  = var.resource_group_name
   location = var.location
+}
+
+moved {
+  from = azurerm_resource_group.rg
+  to   = module.resource_group.azurerm_resource_group.this
 }

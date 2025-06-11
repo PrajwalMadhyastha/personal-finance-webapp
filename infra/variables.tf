@@ -34,6 +34,7 @@ variable "github_username" {
 variable "docker_image_to_deploy" {
   type        = string
   description = "The full, specific Docker image tag to deploy (e.g., ghcr.io/owner/repo:sha)."
+  default     = "ghcr.io/prajwalmadhyastha/personal-finance-webapp:main"
 }
 
 variable "github_pat" {

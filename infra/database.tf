@@ -9,8 +9,8 @@ resource "random_string" "unique" {
 # --- Azure SQL Server ---
 resource "azurerm_mssql_server" "sql_server" {
   name                          = "pfa-sql-server-${random_string.unique.result}"
-  resource_group_name           = azurerm_resource_group.rg.name
-  location                      = var.location
+  resource_group_name           = module.resource_group.name
+  location                      = module.resource_group.location
   version                       = "12.0"
   administrator_login           = var.db_admin_login
   administrator_login_password  = var.db_admin_password
