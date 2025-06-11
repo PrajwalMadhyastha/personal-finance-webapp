@@ -76,6 +76,10 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 'Setup Terraform'
+        if: steps.path_filter.outputs.infra == 'true'
+        uses: hashicorp/setup-terraform@v2
       
       # This step ONLY runs IF infrastructure files changed
       - name: 'Deploy Infrastructure Changes with Terraform'
