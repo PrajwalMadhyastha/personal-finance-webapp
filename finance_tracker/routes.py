@@ -1,38 +1,63 @@
 # finance_tracker/routes.py
 from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, abort, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
-from .models import Expense, User, Category # Import new Category model
+from .models import Expense, User, Category
+from datetime import date, datetime, timedelta
 from . import db
 from sqlalchemy import func
 from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
 
-@main_bp.route('/dashboard')
+def get_month_range(today=None):
+    """Returns the first and last day of the current month."""
+    if not today:
+        today = date.today()
+    first_day = today.replace(day=1)
+    # Find the first day of the next month, then subtract one day
+    next_month = first_day.replace(month=first_day.month % 12 + 1, year=first_day.year + (first_day.month // 12))
+    last_day = next_month - timedelta(days=1)
+    return first_day, last_day
+
+@main_bp.route('/dashboard', methods=['GET', 'POST'])
 @login_required
 def dashboard():
-    """Renders the main dashboard with summary statistics."""
-    current_app.logger.info(f"User {current_user.username} accessed the dashboard.")
+    """Renders the main dashboard with summary statistics for a given date range."""
     
-    # Base query for the current user's expenses
-    user_expenses_query = db.session.query(Expense).filter_by(owner=current_user)
-    
-    # 2. Calculate statistics using efficient database queries
-    total_expense_count = user_expenses_query.count()
-    
-    # func.sum() tells SQLAlchemy to perform a SUM() aggregation in the database
-    # .scalar() returns the single value result of the query
-    total_spent = user_expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0.0
+    start_date_str, end_date_str = None, None
 
-    # Get the single most recent expense
+    if request.method == 'POST':
+        # Get dates from the submitted form
+        start_date_str = request.form.get('start_date')
+        end_date_str = request.form.get('end_date')
+    
+    # If it's a GET request or the form wasn't submitted, use the current month as default
+    if not start_date_str or not end_date_str:
+        start_date, end_date = get_month_range()
+    else:
+        # Convert form strings to datetime objects
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # Base query for the current user's expenses within the date range
+    user_expenses_query = db.session.query(Expense).filter(
+        Expense.owner == current_user,
+        Expense.timestamp.between(start_date, end_date + timedelta(days=1))
+    )
+    
+    total_expense_count = user_expenses_query.count()
+    total_spent = user_expenses_query.with_entities(func.sum(Expense.amount)).scalar() or 0.0
     recent_expense = user_expenses_query.order_by(Expense.timestamp.desc()).first()
 
     return render_template(
         'dashboard.html',
         total_expense_count=total_expense_count,
         total_spent=total_spent,
-        recent_expense=recent_expense
+        recent_expense=recent_expense,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat()
     )
+
 
 # --- UPDATE: The old home route now just redirects to the dashboard ---
 @main_bp.route('/')
@@ -198,27 +223,30 @@ def register():
 @main_bp.route('/api/expense_summary')
 @login_required
 def expense_summary_api():
-    """Provides expense summary data as a JSON object."""
-    
-    # This query joins Expense and Category, filters for the current user,
-    # groups by category name, and sums the amounts for each category.
+    """Provides expense summary data as JSON for a given date range."""
+    # Get date range from URL query parameters
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    # Default to current month if no dates are provided
+    if not start_date_str or not end_date_str:
+        start_date, end_date = get_month_range()
+    else:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    # The query now filters by date range
     summary_query = db.session.query(
         Category.name,
         func.sum(Expense.amount).label('total_amount')
-    ).join(Expense, Expense.category_id == Category.id).filter(
-        Expense.owner == current_user
-    ).group_by(
-        Category.name
-    ).order_by(
+    ).join(Expense).filter(
+        Expense.owner == current_user,
+        Expense.timestamp.between(start_date, end_date + timedelta(days=1))
+    ).group_by(Category.name).order_by(
         func.sum(Expense.amount).desc()
     ).all()
-
-    # The query returns a list of tuples, e.g., [('Food', 500.0), ('Transport', 250.50)]
-    # We need to process this into the format Chart.js expects.
+    
     labels = [row[0] for row in summary_query]
     data = [float(row[1]) for row in summary_query]
     
-    return jsonify({
-        "labels": labels,
-        "data": data
-    })
+    return jsonify({"labels": labels, "data": data})
