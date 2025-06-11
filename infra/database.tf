@@ -1,6 +1,5 @@
 
 # infra/database.tf
-# NOTE: The 'data "http" "myip"' and 'local_access' firewall rule have been removed as per our previous discussion.
 resource "random_string" "unique" {
   length  = 6
   special = false
