@@ -9,6 +9,43 @@ from urllib.parse import urlparse
 
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/edit_income/<int:income_id>', methods=['GET', 'POST'])
+@login_required
+def edit_income(income_id):
+    """Handles editing an existing income record."""
+    income_to_edit = db.get_or_404(Income, income_id)
+    
+    # Crucial security check: ensure the user owns this income record
+    if income_to_edit.owner != current_user:
+        abort(403) # Forbidden
+
+    if request.method == 'POST':
+        income_to_edit.description = request.form.get('description')
+        income_to_edit.amount = float(request.form.get('amount'))
+        
+        db.session.commit()
+        flash('Income record updated successfully!', 'success')
+        return redirect(url_for('main.view_incomes'))
+
+    # For a GET request, show the pre-populated form
+    return render_template('edit_income.html', income=income_to_edit)
+
+
+@main_bp.route('/delete_income/<int:income_id>', methods=['POST'])
+@login_required
+def delete_income(income_id):
+    """Deletes an income record."""
+    income_to_delete = db.get_or_404(Income, income_id)
+
+    # Crucial security check
+    if income_to_delete.owner != current_user:
+        abort(403)
+    
+    db.session.delete(income_to_delete)
+    db.session.commit()
+    flash(f"Income record '{income_to_delete.description}' has been deleted.", 'success')
+    return redirect(url_for('main.view_incomes'))
+
 @main_bp.route('/incomes')
 @login_required
 def view_incomes():

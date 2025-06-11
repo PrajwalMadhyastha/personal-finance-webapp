@@ -13,25 +13,41 @@
     </div>
 
     {% if incomes %}
-        <table>
-            <thead>
+    <table>
+        <thead>
+            <tr>
+                <th>Description</th>
+                <th>Amount (₹)</th>
+                <th>Date Received</th>
+                <th>Actions</th> <!-- 1. Add new column header -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for income in incomes %}
                 <tr>
-                    <th>Description</th>
-                    <th>Amount (₹)</th>
-                    <th>Date Received</th>
+                    <td>{{ income.description }}</td>
+                    <td>₹{{ "%.2f"|format(income.amount) }}</td>
+                    <td>{{ income.timestamp.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <!-- 2. Add Edit link and Delete form -->
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <a href="{{ url_for('main.edit_income', income_id=income.id) }}"
+                               class="secondary outline"
+                               role="button"
+                               style="margin-bottom: 0;">Edit</a>
+
+                            <form action="{{ url_for('main.delete_income', income_id=income.id) }}" method="POST" style="margin-bottom: 0;">
+                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this income record?');">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
-            </thead>
-            <tbody>
-                {% for income in incomes %}
-                    <tr>
-                        <td>{{ income.description }}</td>
-                        <td>₹{{ "%.2f"|format(income.amount) }}</td>
-                        <td>{{ income.timestamp.strftime('%Y-%m-%d') }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    {% else %}
+            {% endfor %}
+        </tbody>
+    </table>
+{% else %}
         <p>You haven't logged any income records yet.</p>
     {% endif %}
 {% endblock %}
