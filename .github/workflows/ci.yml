@@ -97,6 +97,12 @@ jobs:
       # This step ONLY runs IF infrastructure files changed
       - name: 'Deploy Infrastructure Changes with Terraform'
         if: steps.path_filter.outputs.infra == 'true'
+        env:
+          TF_VAR_db_admin_login: ${{ secrets.DB_ADMIN_LOGIN }}
+          TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
+          TF_VAR_github_username: ${{ needs.build-and-push.outputs.owner_lc }}
+          TF_VAR_github_pat: ${{ secrets.GHCR_PAT }}
+
         run: |
           echo "Infrastructure changes detected. Running terraform apply..."
           cd infra
