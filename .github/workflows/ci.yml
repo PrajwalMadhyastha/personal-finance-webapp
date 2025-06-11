@@ -1,62 +1,70 @@
 # .github/workflows/ci.yml
 
-name: CI/CD - Build, Push to GHCR, and Deploy to Azure
+name: Build, Push, and Deploy Application
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
+  # =======================================================
+  # JOB 1: Build the Docker image and push it to GHCR
+  # Its only job is to produce a versioned container image.
+  # =======================================================
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write # Permission for GITHUB_TOKEN to write packages
     
+    # This job outputs the full, unique image tag for the deploy job to use
     outputs:
-      # This job outputs the full image name with the specific SHA tag
       image_tag: ${{ steps.docker_build.outputs.image_id }}
-      # And the lowercase owner name for the next job
-      owner_lc: ${{ steps.repo_owner_lc.outputs.name }}
 
     steps:
-      - name: Checkout repository
+      - name: 'Checkout Repository'
         uses: actions/checkout@v4
 
-      - name: Set repository owner to lowercase
+      - name: 'Set repository owner to lowercase'
         id: repo_owner_lc
         run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
-      - name: Log in to GitHub Container Registry
+      - name: 'Log in to GitHub Container Registry'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ steps.repo_owner_lc.outputs.name }}
-          password: ${{ secrets.GITHUB_TOKEN }} # Use the secure, automatic token for pushing
-
-      - name: Build, tag, and push Docker image
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: 'Build and Push Docker Image'
         id: docker_build
         run: |
           # The image name must be all lowercase
           IMAGE_NAME="ghcr.io/${{ steps.repo_owner_lc.outputs.name }}/personal-finance-webapp"
-          # The tag will be the unique git commit SHA
+          # The tag is the unique git commit SHA, which is a best practice for deployments
           IMAGE_TAG="${IMAGE_NAME}:${{ github.sha }}"
           
+          echo "Building and pushing: ${IMAGE_TAG}"
           docker build -t ${IMAGE_TAG} .
           docker push ${IMAGE_TAG}
           
           # Set the full image name as a job output
           echo "image_id=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
+  # =======================================================
+  # JOB 2: Deploy the image to Azure
+  # This job is "smart" and runs different commands based on what files changed.
+  # =======================================================
   deploy:
     runs-on: ubuntu-latest
-    needs: build-and-push # This job depends on the image being successfully built
+    needs: build-and-push # Depends on the build job
 
     steps:
-      - name: Checkout repository
+      - name: 'Checkout repository'
         uses: actions/checkout@v4
 
-      - name: Check for infrastructure file changes
+      # This step checks if files in the 'infra/' directory have changed
+      - name: 'Check for infrastructure file changes'
         id: path_filter
         uses: dorny/paths-filter@v3
         with:
@@ -64,27 +72,26 @@ jobs:
             infra:
               - 'infra/**'
 
-      - name: Log in to Azure
+      - name: 'Log in to Azure'
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
       
       # This step ONLY runs IF infrastructure files changed
-      - name: Deploy Infrastructure Changes with Terraform
+      - name: 'Deploy Infrastructure Changes with Terraform'
         if: steps.path_filter.outputs.infra == 'true'
         run: |
           echo "Infrastructure changes detected. Running terraform apply..."
           cd infra
-          terraform init
+          # Terraform must be initialized before use
+          terraform init -backend-config="backend.conf"
           terraform apply -auto-approve \
             -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}" \
-            -var="github_username=${{ needs.build-and-push.outputs.owner_lc }}" \
             -var="db_admin_login=${{ secrets.DB_ADMIN_LOGIN }}" \
-            -var="db_admin_password=${{ secrets.DB_ADMIN_PASSWORD }}" \
-            -var="github_pat=${{ secrets.GHCR_PAT }}"
+            -var="db_admin_password=${{ secrets.DB_ADMIN_PASSWORD }}"
             
       # This step ONLY runs IF NO infrastructure files changed
-      - name: Deploy Application Update with Azure CLI
+      - name: 'Deploy Application Update with Azure CLI'
         if: steps.path_filter.outputs.infra != 'true'
         run: |
           echo "No infrastructure changes. Using fast app deployment..."
