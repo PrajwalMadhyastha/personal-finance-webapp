@@ -88,7 +88,7 @@ jobs:
           echo "Infrastructure changes detected. Running terraform apply..."
           cd infra
           # Terraform must be initialized before use
-          terraform init -backend-config="backend.conf"
+          terraform init
           terraform apply -auto-approve \
             -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}" \
             -var="db_admin_login=${{ secrets.DB_ADMIN_LOGIN }}" \
