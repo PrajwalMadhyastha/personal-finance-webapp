@@ -20,7 +20,8 @@
                     <th>Description</th>
                     <th>Account</th>
                     <th>Category</th>
-                    <th>Tags</th> <th style="text-align: right;">Amount (₹)</th>
+                    <th>Tags</th>
+                    <th style="text-align: right;">Amount (₹)</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -35,7 +36,7 @@
                         </td>
                         <td>
                             {% for tag in transaction.tags %}
-                                <span class="badge">{{ tag.name }}</span>
+                                <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge">{{ tag.name }}</a>
                             {% endfor %}
                         </td>
                         <td class="{{ transaction.transaction_type }}" style="text-align: right;">

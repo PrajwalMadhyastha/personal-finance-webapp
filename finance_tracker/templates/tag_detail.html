@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Transactions for '{{ tag_name }}'{% endblock %}
+
+{% block content %}
+    <hgroup>
+        <h2>Transactions Tagged With '{{ tag_name }}'</h2>
+        <p>A complete list of all income and expenses with this tag.</p>
+    </hgroup>
+
+    {% if transactions %}
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Account</th>
+                <th>Category</th>
+                <th style="text-align: right;">Amount (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr>
+                <td>{{ transaction.transaction_date.strftime('%Y-%m-%d') }}</td>
+                <td>{{ transaction.description }}</td>
+                <td>{{ transaction.account.name if transaction.account else 'N/A' }}</td>
+                <td>
+                    {% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                </td>
+                <td class="{{ transaction.transaction_type }}" style="text-align: right;">
+                    {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                    ₹{{ "%.2f"|format(transaction.amount) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>There are no transactions with this tag yet.</p>
+    {% endif %}
+
+    <footer>
+        <a href="{{ url_for('main.transactions') }}" role="button" class="secondary outline">Back to All Transactions</a>
+    </footer>
+{% endblock %}

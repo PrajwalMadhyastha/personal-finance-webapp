@@ -90,7 +90,7 @@
                         <td>
                             {{ transaction.description }}<br>
                             {% for tag in transaction.tags %}
-                                <span class="badge" style="font-size: 0.8em; opacity: 0.8;">{{ tag.name }}</span>
+                                <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge" style="font-size: 0.8em; opacity: 0.8;">{{ tag.name }}</a>
                             {% endfor %}
                         </td>
                         <td class="{{ transaction.transaction_type }}">

@@ -491,6 +491,26 @@ def logout():
     flash('You have been logged out.', 'success')
     return redirect(url_for('main.index'))
 
+@main_bp.route('/tag/<tag_name>')
+@login_required
+def tag_detail(tag_name):
+    """Displays all transactions for a specific tag."""
+    
+    # Find the tag by name, ensuring it belongs to the current user for security.
+    # We use a case-insensitive comparison for a better user experience.
+    stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
+    tag = db.session.execute(stmt).scalar_one_or_none()
+
+    if not tag:
+        # If the tag doesn't exist or doesn't belong to the user, return a 404.
+        abort(404)
+
+    # The backref 'tag.transactions' automatically gives us a list of all transactions
+    # associated with this tag. We can sort this list directly.
+    transactions = sorted(tag.transactions, key=lambda t: t.transaction_date, reverse=True)
+    
+    return render_template('tag_detail.html', tag_name=tag.name, transactions=transactions)
+
 
 # ===================================================================
 # API & REPORTING ROUTES
