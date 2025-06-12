@@ -14,7 +14,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from .models import Transaction, User, Category, Account, Budget, Tag
 from sqlalchemy import func, select
-
+from sqlalchemy import or_
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -80,10 +80,45 @@ def dashboard():
 @main_bp.route('/transactions')
 @login_required
 def transactions():
+    """Display a list of all transactions with pagination and search."""
     page = request.args.get('page', 1, type=int)
-    stmt = select(Transaction).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc())
+    search_query = request.args.get('q', '').strip()
+
+    # Start with a base query and join with related models for searching
+    stmt = db.select(Transaction).join(
+        Transaction.categories, isouter=True # Left join for categories
+    ).join(
+        Transaction.tags, isouter=True # Left join for tags
+    ).filter(
+        Transaction.user_id == current_user.id
+    ).distinct()
+
+    # If a search query is provided, add filtering conditions
+    if search_query:
+        # The search term to be used with ILIKE for case-insensitive matching
+        search_term = f"%{search_query}%"
+        
+        # Use OR condition to search across multiple fields
+        stmt = stmt.filter(
+            or_(
+                Transaction.description.ilike(search_term),
+                Transaction.notes.ilike(search_term),
+                Category.name.ilike(search_term),
+                Tag.name.ilike(search_term)
+            )
+        )
+
+    # Apply ordering after all filters
+    stmt = stmt.order_by(Transaction.transaction_date.desc())
+    
+    # Execute the final query with pagination
     all_transactions = db.paginate(stmt, page=page, per_page=15)
-    return render_template('transactions.html', transactions=all_transactions)
+        
+    return render_template(
+        'transactions.html', 
+        transactions=all_transactions,
+        search_query=search_query # Pass the query back to the template
+    )
 
 
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
