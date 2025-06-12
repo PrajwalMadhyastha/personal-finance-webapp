@@ -11,28 +11,48 @@
         <div style="text-align: right;">
             <form id="date-range-form">
                 <div class="grid">
-                    <div>
-                        <label for="start_date">Start Date</label>
-                        <input type="date" id="start_date" name="start_date">
-                    </div>
-                    <div>
-                        <label for="end_date">End Date</label>
-                        <input type="date" id="end_date" name="end_date">
-                    </div>
+                    <div><label for="start_date">Start Date</label><input type="date" id="start_date" name="start_date"></div>
+                    <div><label for="end_date">End Date</label><input type="date" id="end_date" name="end_date"></div>
                 </div>
             </form>
         </div>
     </div>
     <hr>
     
-    <section>
+    <article>
+        <hgroup>
+            <h4>This Month's Budget Progress</h4>
+            <p>Your spending versus your monthly limits.</p>
+        </hgroup>
+        {% if budget_progress %}
+            {% for budget in budget_progress %}
+                <div>
+                    <label for="budget-{{ loop.index }}">{{ budget.category_name }}</label>
+                    <progress id="budget-{{ loop.index }}" value="{{ budget.total_spent }}" max="{{ budget.budget_limit }}"></progress>
+                    <small>₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} ({{ "%.0f"|format(budget.percentage_used) }}%)</small>
+                </div>
+                {% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+        {% else %}
+            <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
+        {% endif %}
+    </article>
+
+    <div class="grid">
         <article>
             <h4>Daily Expense Trend</h4>
+            <div style="height: 300px;"><canvas id="dailyTrendChart"></canvas></div>
+        </article>
+        <article>
+            <h4>Expense Breakdown by Category</h4>
             <div style="height: 300px;">
-                <canvas id="dailyTrendChart"></canvas>
+                <canvas id="categoryChart"></canvas>
+                <p id="no-pie-chart-data" style="text-align: center; display: none;">No expense data for this period.</p>
             </div>
         </article>
-    </section>
+    </div>
+
+    <hr>
     
     <div class="grid">
         <article>
@@ -57,146 +77,92 @@
                 </tbody>
             </table>
             {% else %}
-            <p>You haven't added any accounts yet.</p>
+                <p>No accounts added yet.</p>
             {% endif %}
-            <a href="{{ url_for('main.add_account') }}" role="button" class="outline">Add New Account</a>
         </article>
         <article>
-            <h4>Expense Breakdown by Category</h4>
-            <div style="max-height: 300px;">
-                <canvas id="categoryChart"></canvas>
-                <p id="no-pie-chart-data" style="text-align: center; display: none;">No expense data for this period.</p>
-            </div>
+            <h4>Recent Transactions</h4>
+            {% if transactions %}
+            <table>
+                <tbody>
+                {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.description }}</td>
+                        <td class="{{ transaction.transaction_type }}">
+                            {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                            ₹{{ "%.2f"|format(transaction.amount) }}
+                        </td>
+                        <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+                <p>No transactions recorded yet.</p>
+            {% endif %}
         </article>
     </div>
 
-    <hr>
-    
-    <h4>Recent Transactions</h4>
-    {% if transactions %}
-    <table>
-        <tbody>
-        {% for transaction in transactions %}
-            <tr>
-                <td>{{ transaction.description }}</td>
-                <td class="{{ transaction.transaction_type }}">
-                    {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
-                    ₹{{ "%.2f"|format(transaction.amount) }}
-                </td>
-                <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-        <p>No transactions recorded yet.</p>
-    {% endif %}
-    <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
-
-
 <script>
-// The JavaScript remains the same as the last version.
-// It already handles updating both charts.
 document.addEventListener('DOMContentLoaded', function () {
-    // Chart instances
-    let dailyTrendChart;
-    let categoryChart;
-
-    // DOM Elements
+    let dailyTrendChart, categoryChart;
     const startDateInput = document.getElementById('start_date');
     const endDateInput = document.getElementById('end_date');
 
-    // Set default dates (last 30 days)
     const today = new Date();
     const thirtyDaysAgo = new Date(new Date().setDate(today.getDate() - 29));
     startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
     endDateInput.value = today.toISOString().split('T')[0];
 
-    // Function to update all charts
     function updateAllCharts() {
         const startDate = startDateInput.value;
         const endDate = endDateInput.value;
-        
         if (!startDate || !endDate) return;
-
         updateTrendChart(startDate, endDate);
         updateCategoryChart(startDate, endDate);
     }
 
-    // Function to fetch data and render the daily trend line chart
     function updateTrendChart(startDate, endDate) {
-        const trendApiUrl = `{{ url_for('main.daily_expense_trend') }}?start_date=${startDate}&end_date=${endDate}`;
-        const trendCtx = document.getElementById('dailyTrendChart').getContext('2d');
-
-        fetch(trendApiUrl)
-            .then(response => response.json())
-            .then(data => {
-                if (dailyTrendChart) {
-                    dailyTrendChart.destroy();
-                }
-                dailyTrendChart = new Chart(trendCtx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels,
-                        datasets: [{
-                            label: 'Daily Expenses (₹)',
-                            data: data.data,
-                            borderColor: 'rgb(255, 99, 132)',
-                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                            fill: true,
-                            tension: 0.1
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        scales: { y: { beginAtZero: true } }
-                    }
-                });
+        const apiUrl = `{{ url_for('main.daily_expense_trend') }}?start_date=${startDate}&end_date=${endDate}`;
+        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
+        fetch(apiUrl).then(response => response.json()).then(data => {
+            if (dailyTrendChart) dailyTrendChart.destroy();
+            dailyTrendChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: data.labels, datasets: [{
+                    label: 'Daily Expenses (₹)', data: data.data,
+                    borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                    fill: true, tension: 0.1
+                }]},
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
             });
+        });
     }
 
-    // Function to fetch data and render the category pie chart
     function updateCategoryChart(startDate, endDate) {
-        const categoryApiUrl = `{{ url_for('main.transaction_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
-        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-        const noDataMessage = document.getElementById('no-pie-chart-data');
-
-        fetch(categoryApiUrl)
-            .then(response => response.json())
-            .then(data => {
-                if (categoryChart) {
-                    categoryChart.destroy();
-                }
-                if (data.labels.length > 0) {
-                    categoryCtx.canvas.style.display = 'block';
-                    noDataMessage.style.display = 'none';
-                    categoryChart = new Chart(categoryCtx, {
-                        type: 'pie',
-                        data: {
-                            labels: data.labels,
-                            datasets: [{
-                                data: data.data,
-                                backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40'],
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            maintainAspectRatio: false
-                        }
-                    });
-                } else {
-                    categoryCtx.canvas.style.display = 'none';
-                    noDataMessage.style.display = 'block';
-                }
-            });
+        const apiUrl = `{{ url_for('main.transaction_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
+        const ctx = document.getElementById('categoryChart').getContext('2d');
+        const noDataMsg = document.getElementById('no-pie-chart-data');
+        fetch(apiUrl).then(response => response.json()).then(data => {
+            if (categoryChart) categoryChart.destroy();
+            if (data.labels.length > 0) {
+                ctx.canvas.style.display = 'block'; noDataMsg.style.display = 'none';
+                categoryChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: { labels: data.labels, datasets: [{
+                        data: data.data,
+                        backgroundColor: ['#ff6384','#36a2eb','#ffce56','#4bc0c0','#9966ff','#ff9f40'],
+                    }]},
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            } else {
+                ctx.canvas.style.display = 'none'; noDataMsg.style.display = 'block';
+            }
+        });
     }
     
-    // Event listeners for date inputs
     startDateInput.addEventListener('change', updateAllCharts);
     endDateInput.addEventListener('change', updateAllCharts);
-
-    // Initial load
     updateAllCharts();
 });
 </script>
