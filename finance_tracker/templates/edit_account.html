@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Account{% endblock %}
+
+{% block content %}
+    <h2>Edit Account</h2>
+    <p>Update the details for your financial account.</p>
+
+    <form method="POST" action="{{ url_for('main.edit_account', account_id=account.id) }}">
+        <label for="name">Account Name</label>
+        <input type="text" id="name" name="name" value="{{ account.name }}" required>
+
+        <label for="account_type">Account Type</label>
+        <select id="account_type" name="account_type" required>
+            <option value="Checking" {% if account.account_type == 'Checking' %}selected{% endif %}>Checking Account</option>
+            <option value="Savings" {% if account.account_type == 'Savings' %}selected{% endif %}>Savings Account</option>
+            <option value="Credit Card" {% if account.account_type == 'Credit Card' %}selected{% endif %}>Credit Card</option>
+            <option value="Cash" {% if account.account_type == 'Cash' %}selected{% endif %}>Cash</option>
+            <option value="Other" {% if account.account_type == 'Other' %}selected{% endif %}>Other</option>
+        </select>
+        
+        <article>
+            <p><strong>Note:</strong> The account balance of <strong>₹{{ "%.2f"|format(account.balance) }}</strong> can only be changed by adding, editing, or deleting transactions.</p>
+        </article>
+
+        <div class="grid">
+            <button type="submit">Update Account</button>
+            <a href="{{ url_for('main.accounts') }}" role="button" class="secondary outline">Cancel</a>
+        </div>
+    </form>
+{% endblock %}

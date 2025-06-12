@@ -11,6 +11,50 @@ from .models import Transaction, User, Category, Account
 # We can keep the blueprint name the same
 main_bp = Blueprint('main', __name__)
 
+@main_bp.route('/edit_account/<int:account_id>', methods=['GET', 'POST'])
+@login_required
+def edit_account(account_id):
+    """Handles editing an existing financial account."""
+    account = Account.query.get_or_404(account_id)
+
+    # Security check: ensure the user owns this account
+    if account.user_id != current_user.id:
+        flash('You do not have permission to edit this account.', 'danger')
+        return redirect(url_for('main.accounts'))
+
+    if request.method == 'POST':
+        account.name = request.form.get('name')
+        account.account_type = request.form.get('account_type')
+        # Note: Balance is only changed by transactions, so we don't edit it here.
+        db.session.commit()
+        flash('Account updated successfully!', 'success')
+        return redirect(url_for('main.accounts'))
+
+    # For a GET request, show the form pre-filled with account data
+    return render_template('edit_account.html', account=account)
+
+
+@main_bp.route('/delete_account/<int:account_id>', methods=['POST'])
+@login_required
+def delete_account(account_id):
+    """Handles deleting an existing financial account."""
+    account = Account.query.get_or_404(account_id)
+
+    # Security check: ensure the user owns this account
+    if account.user_id != current_user.id:
+        flash('You do not have permission to delete this account.', 'danger')
+        return redirect(url_for('main.accounts'))
+
+    # Critical Check: Prevent deleting an account that has transactions.
+    if account.transactions:
+        flash('Cannot delete an account that has associated transactions. Please re-assign or delete them first.', 'error')
+        return redirect(url_for('main.accounts'))
+
+    db.session.delete(account)
+    db.session.commit()
+    flash('Account deleted successfully!', 'success')
+    return redirect(url_for('main.accounts'))
+
 @main_bp.route('/reports')
 @login_required
 def reports():

@@ -18,8 +18,8 @@
             <tr>
                 <th>Account Name</th>
                 <th>Type</th>
-                <th>Current Balance</th>
-                <th>Actions</th>
+                <th style="text-align: right;">Current Balance</th>
+                <th style="text-align: center;">Actions</th>
             </tr>
         </thead>
         <tbody>
@@ -27,10 +27,17 @@
                 <tr>
                     <td>{{ account.name }}</td>
                     <td>{{ account.account_type }}</td>
-                    <td>₹{{ "%.2f"|format(account.balance) }}</td>
+                    <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
                     <td>
-                        <!-- Add Edit/Delete links here in the future -->
-                        <small>N/A</small>
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <a href="{{ url_for('main.edit_account', account_id=account.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
+                            
+                            <form action="{{ url_for('main.delete_account', account_id=account.id) }}" method="POST" style="margin-bottom: 0;">
+                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this account? This can only be done if there are no transactions linked to it.');">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
             {% endfor %}
