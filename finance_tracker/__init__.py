@@ -26,18 +26,28 @@ def create_app():
     app = Flask(__name__, instance_relative_config=True)
 
     # --- Configuration ---
-    db_server = os.getenv('DB_SERVER_FQDN')
+    # FIXED: These now EXACTLY match the names in your .env file and Terraform config
+    db_server = os.getenv('DB_SERVER')
     db_name = os.getenv('DB_NAME')
-    db_user = os.getenv('DB_ADMIN_LOGIN')
-    db_password = os.getenv('DB_ADMIN_PASSWORD')
-    if not all([db_server, db_name, db_user, db_password]):
+    db_admin_login = os.getenv('DB_ADMIN_LOGIN')
+    db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
+    
+    # This check is good practice!
+    if not all([db_server, db_name, db_admin_login, db_admin_password]):
         raise ValueError("Database configuration is missing from environment variables.")
+        
     driver_name = 'ODBC Driver 18 for SQL Server'
-    password_safe = urllib.parse.quote_plus(db_password)
-    db_uri = f"mssql+pyodbc://{db_user}:{password_safe}@{db_server}/{db_name}?driver={urllib.parse.quote_plus(driver_name)}"
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'a_default_fallback_secret_key')
+    # This is also good practice for passwords with special characters.
+    password_safe = urllib.parse.quote_plus(db_admin_password)
+    
+    # FIXED: Using the corrected python variable names for clarity.
+    db_uri = f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?driver={urllib.parse.quote_plus(driver_name)}"
+    
+    app.config.from_mapping(
+        SECRET_KEY=os.getenv('SECRET_KEY', 'a_default_fallback_secret_key_for_dev'),
+        SQLALCHEMY_DATABASE_URI=db_uri,
+        SQLALCHEMY_TRACK_MODIFICATIONS=False
+    )
 
     # --- Initialize extensions ---
     db.init_app(app)

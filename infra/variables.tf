@@ -41,3 +41,9 @@ variable "github_pat" {
   description = "A GitHub PAT with read:packages scope to pull the container image."
   sensitive   = true
 }
+
+variable "flask_secret_key" {
+  description = "The secret key used by Flask for session signing."
+  type        = string
+  sensitive   = true # Marks this as a sensitive value
+}
