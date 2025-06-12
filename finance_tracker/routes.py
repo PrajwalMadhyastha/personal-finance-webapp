@@ -4,12 +4,35 @@ from . import db
 import decimal
 from collections import defaultdict
 from datetime import datetime
-# --- CORRECTED IMPORTS ---
-# We now import the new Transaction and Account models
+from flask import abort
 from .models import Transaction, User, Category, Account
 
 # We can keep the blueprint name the same
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/account/<int:account_id>')
+@login_required
+def account_detail(account_id):
+    """Displays the details and transactions for a single account."""
+    
+    # Query for the account, or return a 404 error if not found
+    account = Account.query.get_or_404(account_id)
+
+    # Security Check: Ensure the logged-in user owns this account.
+    # If not, abort with a "Forbidden" error.
+    if account.user_id != current_user.id:
+        abort(403)
+
+    # Query for all transactions linked to this specific account
+    transactions = Transaction.query.filter_by(account_id=account.id)\
+        .order_by(Transaction.transaction_date.desc())\
+        .all()
+
+    # Note: We are passing the pre-calculated balance directly from the account object.
+    # Since we update account.balance with every transaction, we don't need to recalculate it here.
+    # This is much more efficient.
+    
+    return render_template('account_detail.html', account=account, transactions=transactions)
 
 @main_bp.route('/edit_account/<int:account_id>', methods=['GET', 'POST'])
 @login_required
