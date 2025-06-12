@@ -459,20 +459,42 @@ def manage_categories():
 @login_required
 def profile():
     if request.method == 'POST':
-        current_password = request.form.get('current_password')
-        new_password = request.form.get('new_password')
-        confirm_new_password = request.form.get('confirm_new_password')
+        # Check which form was submitted based on the button's 'name' and 'value'
+        action = request.form.get('action')
 
-        if not bcrypt.check_password_hash(current_user.password_hash, current_password):
-            flash('Your current password was incorrect.', 'error')
-        elif new_password != confirm_new_password:
-            flash('New passwords do not match.', 'error')
-        else:
-            current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-            db.session.commit()
-            flash('Your password has been updated!', 'success')
+        if action == 'update_profile':
+            new_email = request.form.get('email').strip()
+            
+            # Validation: Check if the new email is already taken by another user
+            stmt = select(User).where(User.email == new_email)
+            existing_user = db.session.execute(stmt).scalar_one_or_none()
+
+            if existing_user and existing_user.id != current_user.id:
+                flash('That email address is already in use by another account.', 'error')
+            elif not new_email:
+                flash('Email address cannot be empty.', 'error')
+            else:
+                current_user.email = new_email
+                db.session.commit()
+                flash('Your profile has been updated successfully!', 'success')
+
+        elif action == 'change_password':
+            current_password = request.form.get('current_password')
+            new_password = request.form.get('new_password')
+            confirm_new_password = request.form.get('confirm_new_password')
+
+            if not bcrypt.check_password_hash(current_user.password_hash, current_password):
+                flash('Your current password was incorrect. Please try again.', 'error')
+            elif new_password != confirm_new_password:
+                flash('The new passwords do not match.', 'error')
+            else:
+                current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+                db.session.commit()
+                flash('Your password has been updated successfully!', 'success')
+        
         return redirect(url_for('main.profile'))
 
+    # For a GET request, just render the page as usual
     return render_template('profile.html')
 
 

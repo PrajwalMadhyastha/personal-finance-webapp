@@ -1,18 +1,21 @@
-<!-- finance_tracker/templates/profile.html -->
 {% extends "base.html" %}
 
 {% block title %}User Profile{% endblock %}
 
 {% block content %}
     <div class="grid">
-        <!-- User Details Column -->
         <article>
             <h2>User Profile</h2>
-            <p><strong>Username:</strong> {{ current_user.username }}</p>
-            <p><strong>Email:</strong> {{ current_user.email }}</p>
+            <p><strong>Username:</strong> {{ current_user.username }} (cannot be changed)</p>
+            
+            <form method="POST" action="{{ url_for('main.profile') }}">
+                <label for="email"><strong>Email Address</strong></label>
+                <input type="email" id="email" name="email" value="{{ current_user.email }}" required>
+                
+                <button type="submit" name="action" value="update_profile">Update Profile</button>
+            </form>
         </article>
 
-        <!-- Change Password Form Column -->
         <article>
             <h2>Change Password</h2>
             <form method="POST" action="{{ url_for('main.profile') }}">
@@ -25,7 +28,7 @@
                 <label for="confirm_new_password">Confirm New Password</label>
                 <input type="password" id="confirm_new_password" name="confirm_new_password" required>
                 
-                <button type="submit">Change Password</button>
+                <button type="submit" name="action" value="change_password">Change Password</button>
             </form>
         </article>
     </div>
