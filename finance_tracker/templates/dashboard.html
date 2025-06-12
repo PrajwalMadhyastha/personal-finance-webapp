@@ -87,7 +87,12 @@
                 <tbody>
                 {% for transaction in transactions %}
                     <tr>
-                        <td>{{ transaction.description }}</td>
+                        <td>
+                            {{ transaction.description }}<br>
+                            {% for tag in transaction.tags %}
+                                <span class="badge" style="font-size: 0.8em; opacity: 0.8;">{{ tag.name }}</span>
+                            {% endfor %}
+                        </td>
                         <td class="{{ transaction.transaction_type }}">
                             {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
                             ₹{{ "%.2f"|format(transaction.amount) }}

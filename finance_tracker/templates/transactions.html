@@ -20,8 +20,7 @@
                     <th>Description</th>
                     <th>Account</th>
                     <th>Category</th>
-                    <th>Type</th>
-                    <th style="text-align: right;">Amount (₹)</th>
+                    <th>Tags</th> <th style="text-align: right;">Amount (₹)</th>
                     <th>Actions</th>
                 </tr>
             </thead>
@@ -30,15 +29,18 @@
                     <tr>
                         <td>{{ transaction.transaction_date.strftime('%Y-%m-%d') }}</td>
                         <td>{{ transaction.description }}</td>
-                        <td>{{ transaction.account.name }}</td>
+                        <td>{{ transaction.account.name if transaction.account else 'N/A' }}</td>
                         <td>
                             {% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}
                         </td>
-                        <td class="{{ transaction.transaction_type }}">
-                            {{ transaction.transaction_type | capitalize }}
+                        <td>
+                            {% for tag in transaction.tags %}
+                                <span class="badge">{{ tag.name }}</span>
+                            {% endfor %}
                         </td>
                         <td class="{{ transaction.transaction_type }}" style="text-align: right;">
-                            ₹{{ "%.2f"|format(transaction.amount) }}
+                             {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                             ₹{{ "%.2f"|format(transaction.amount) }}
                         </td>
                         <td>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
@@ -53,25 +55,14 @@
             </tbody>
         </table>
 
-        <hr>
-
-        <!-- Pagination navigation -->
         <nav aria-label="Pagination">
             <ul>
                 <li>
-                    {% if transactions.has_prev %}
-                        <a href="{{ url_for('main.transactions', page=transactions.prev_num) }}">‹ Previous</a>
-                    {% else %}
-                        <span disabled>‹ Previous</span>
-                    {% endif %}
+                    {% if transactions.has_prev %}<a href="{{ url_for('main.transactions', page=transactions.prev_num) }}">‹ Previous</a>{% else %}<span disabled>‹ Previous</span>{% endif %}
                 </li>
                 <li>Page {{ transactions.page }} of {{ transactions.pages }}.</li>
                 <li>
-                    {% if transactions.has_next %}
-                        <a href="{{ url_for('main.transactions', page=transactions.next_num) }}">Next ›</a>
-                    {% else %}
-                        <span disabled>Next ›</span>
-                    {% endif %}
+                    {% if transactions.has_next %}<a href="{{ url_for('main.transactions', page=transactions.next_num) }}">Next ›</a>{% else %}<span disabled>Next ›</span>{% endif %}
                 </li>
             </ul>
         </nav>
@@ -79,5 +70,4 @@
     {% else %}
         <p>No transactions recorded yet. <a href="{{ url_for('main.add_transaction') }}">Add your first one!</a></p>
     {% endif %}
-
 {% endblock %}

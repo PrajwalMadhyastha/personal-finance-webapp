@@ -12,7 +12,7 @@ import csv
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta
-from .models import Transaction, User, Category, Account, Budget
+from .models import Transaction, User, Category, Account, Budget, Tag
 from sqlalchemy import func, select
 
 
@@ -113,6 +113,21 @@ def add_transaction():
             category = db.session.get(Category, int(category_id))
             if category: new_transaction.categories.append(category)
 
+        # --- THIS IS THE FULL TAG-HANDLING LOGIC ---
+        tags_string = request.form.get('tags', '').strip()
+        if tags_string:
+            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
+            for tag_name in tag_names:
+                # Check if tag already exists for this user (case-insensitive)
+                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
+                tag = db.session.execute(stmt).scalar_one_or_none()
+                if not tag:
+                    # If not, create a new one
+                    tag = Tag(name=tag_name, user_id=current_user.id)
+                    db.session.add(tag)
+                new_transaction.tags.append(tag)
+        # --- END OF TAG LOGIC ---
+
         account = db.session.get(Account, account_id)
         if account:
             if new_transaction.transaction_type == 'income':
@@ -132,21 +147,22 @@ def add_transaction():
 @login_required
 def edit_transaction(transaction_id):
     transaction = db.session.get(Transaction, transaction_id)
-    if not transaction: abort(404)
-    if transaction.user_id != current_user.id: abort(403)
+    if not transaction or transaction.user_id != current_user.id:
+        abort(404)
     
     accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
     categories = db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars().all()
 
     if request.method == 'POST':
+        # --- (Balance update logic remains the same) ---
         original_amount = transaction.amount
         original_type = transaction.transaction_type
         original_account = transaction.account
-
         if original_account:
             if original_type == 'income': original_account.balance -= original_amount
             else: original_account.balance += original_amount
 
+        # --- (Update transaction fields) ---
         transaction.amount = decimal.Decimal(request.form.get('amount'))
         transaction.transaction_type = request.form.get('transaction_type')
         transaction.description = request.form.get('description')
@@ -158,6 +174,22 @@ def edit_transaction(transaction_id):
             if transaction.transaction_type == 'income': new_account.balance += transaction.amount
             else: new_account.balance -= transaction.amount
         
+        # --- THIS IS THE FULL TAG-HANDLING LOGIC FOR EDIT ---
+        # Clear existing tags first
+        transaction.tags.clear()
+        tags_string = request.form.get('tags', '').strip()
+        if tags_string:
+            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
+            for tag_name in tag_names:
+                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
+                tag = db.session.execute(stmt).scalar_one_or_none()
+                if not tag:
+                    tag = Tag(name=tag_name, user_id=current_user.id)
+                    db.session.add(tag)
+                transaction.tags.append(tag)
+        # --- END OF TAG LOGIC ---
+        
+        # --- (Category update logic remains the same) ---
         category_id = request.form.get('category_id')
         transaction.categories.clear()
         if category_id:

@@ -2,6 +2,11 @@ from flask_login import UserMixin
 from . import db
 from datetime import datetime
 
+transaction_tags = db.Table('transaction_tags',
+    db.Column('transaction_id', db.Integer, db.ForeignKey('transaction.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+)
+
 # Association table for many-to-many relationship between transactions and categories
 transaction_categories = db.Table('transaction_categories',
     db.Column('transaction_id', db.Integer, db.ForeignKey('transaction.id'), primary_key=True),
@@ -13,15 +18,12 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(150), nullable=False)
-
-    # Updated relationship to the new Transaction model
     transactions = db.relationship('Transaction', backref='user', lazy=True, cascade="all, delete-orphan")
-    
-    # New relationship to the Account model
     accounts = db.relationship('Account', backref='user', lazy=True, cascade="all, delete-orphan")
     
     categories = db.relationship('Category', backref='user', lazy=True, cascade="all, delete-orphan")
     budgets = db.relationship('Budget', backref='user', lazy=True, cascade="all, delete-orphan")
+    tags = db.relationship('Tag', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'account'
@@ -38,26 +40,17 @@ class Transaction(db.Model):
     __tablename__ = 'transaction'
     id = db.Column(db.Integer, primary_key=True)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
-    
-    # New column to distinguish between 'income' and 'expense'
     transaction_type = db.Column(db.String(20), nullable=False) 
-    
-    # Renamed from 'timestamp' for clarity
     transaction_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    
     description = db.Column(db.String(200), nullable=False)
-    
-    # New nullable text column for optional details
     notes = db.Column(db.Text, nullable=True)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    
-    # New Foreign Key to the Account model
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
-
-    # Updated relationship for many-to-many with Category
     categories = db.relationship('Category', secondary=transaction_categories, lazy='subquery',
                                  backref=db.backref('transactions', lazy=True))
+    tags = db.relationship('Tag', secondary=transaction_tags, lazy='subquery',
+                           backref=db.backref('transactions', lazy=True))
 
 class Category(db.Model):
     __tablename__ = 'category'
@@ -79,3 +72,12 @@ class Budget(db.Model):
     # This constraint prevents a user from creating more than one budget
     # for the same category in the same month and year.
     __table_args__ = (db.UniqueConstraint('user_id', 'category_id', 'month', 'year', name='_user_category_month_year_uc'),)
+
+class Tag(db.Model):
+    __tablename__ = 'tag'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    
+    # Ensures a user cannot have two tags with the same name (case-insensitive)
+    __table_args__ = (db.UniqueConstraint('user_id', 'name', name='_user_tag_name_uc'),)

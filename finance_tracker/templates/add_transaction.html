@@ -9,14 +9,8 @@
             <div>
                 <label for="transaction_type">Transaction Type</label>
                 <fieldset>
-                    <label for="expense">
-                        <input type="radio" id="expense" name="transaction_type" value="expense" checked>
-                        Expense
-                    </label>
-                    <label for="income">
-                        <input type="radio" id="income" name="transaction_type" value="income">
-                        Income
-                    </label>
+                    <label for="expense"><input type="radio" id="expense" name="transaction_type" value="expense" checked> Expense</label>
+                    <label for="income"><input type="radio" id="income" name="transaction_type" value="income"> Income</label>
                 </fieldset>
             </div>
             <div>
@@ -48,6 +42,9 @@
                 </select>
             </div>
         </div>
+        
+        <label for="tags">Tags (comma-separated)</label>
+        <input type="text" id="tags" name="tags" placeholder="e.g., vacation, work-expense, urgent">
         
         <label for="notes">Notes (Optional)</label>
         <textarea id="notes" name="notes" rows="3"></textarea>
