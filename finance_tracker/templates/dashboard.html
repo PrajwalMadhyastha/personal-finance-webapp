@@ -3,53 +3,75 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-    <h2>Dashboard</h2>
-    <p>Welcome back, {{ current_user.username }}!</p>
-
+    <div class="grid">
+        <div>
+            <h2>Dashboard</h2>
+            <p>Welcome back, {{ current_user.username }}!</p>
+        </div>
+        <div style="text-align: right;">
+            <form id="date-range-form">
+                <div class="grid">
+                    <div>
+                        <label for="start_date">Start Date</label>
+                        <input type="date" id="start_date" name="start_date">
+                    </div>
+                    <div>
+                        <label for="end_date">End Date</label>
+                        <input type="date" id="end_date" name="end_date">
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    <hr>
+    
+    <section>
+        <article>
+            <h4>Daily Expense Trend</h4>
+            <div style="height: 300px;">
+                <canvas id="dailyTrendChart"></canvas>
+            </div>
+        </article>
+    </section>
+    
     <div class="grid">
         <article>
-            <hgroup>
-                <h4>Your Accounts</h4>
-                <p>A summary of your financial accounts.</p>
-            </hgroup>
+            <h4>Your Accounts</h4>
             {% if accounts %}
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Account Name</th>
-                            <th>Type</th>
-                            <th>Balance</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for account in accounts %}
-                        <tr>
-                            <td>{{ account.name }}</td>
-                            <td>{{ account.account_type }}</td>
-                            <td>₹{{ "%.2f"|format(account.balance) }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Account Name</th>
+                        <th>Type</th>
+                        <th style="text-align: right;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr>
+                        <td><a href="{{ url_for('main.account_detail', account_id=account.id) }}">{{ account.name }}</a></td>
+                        <td>{{ account.account_type }}</td>
+                        <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
             {% else %}
-                <p>You haven't added any accounts yet.</p>
+            <p>You haven't added any accounts yet.</p>
             {% endif %}
             <a href="{{ url_for('main.add_account') }}" role="button" class="outline">Add New Account</a>
         </article>
         <article>
-            <hgroup>
-                <h4>Expense Breakdown</h4>
-                <p>Your spending by category (all time).</p>
-            </hgroup>
+            <h4>Expense Breakdown by Category</h4>
             <div style="max-height: 300px;">
                 <canvas id="categoryChart"></canvas>
-                <p id="no-chart-data" style="text-align: center; display: none;">No expense data available to build a chart.</p>
+                <p id="no-pie-chart-data" style="text-align: center; display: none;">No expense data for this period.</p>
             </div>
         </article>
     </div>
 
     <hr>
-
+    
     <h4>Recent Transactions</h4>
     {% if transactions %}
     <table>
@@ -71,40 +93,111 @@
     {% endif %}
     <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
 
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const ctx = document.getElementById('categoryChart').getContext('2d');
-    const noDataMessage = document.getElementById('no-chart-data');
-    const apiUrl = `{{ url_for('main.transaction_summary_api') }}`;
 
-    fetch(apiUrl)
-        .then(response => response.json())
-        .then(data => {
-            if (data.labels.length > 0) {
-                ctx.canvas.style.display = 'block';
-                noDataMessage.style.display = 'none';
-                new Chart(ctx, {
-                    type: 'pie',
+<script>
+// The JavaScript remains the same as the last version.
+// It already handles updating both charts.
+document.addEventListener('DOMContentLoaded', function () {
+    // Chart instances
+    let dailyTrendChart;
+    let categoryChart;
+
+    // DOM Elements
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+
+    // Set default dates (last 30 days)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(new Date().setDate(today.getDate() - 29));
+    startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
+    endDateInput.value = today.toISOString().split('T')[0];
+
+    // Function to update all charts
+    function updateAllCharts() {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        
+        if (!startDate || !endDate) return;
+
+        updateTrendChart(startDate, endDate);
+        updateCategoryChart(startDate, endDate);
+    }
+
+    // Function to fetch data and render the daily trend line chart
+    function updateTrendChart(startDate, endDate) {
+        const trendApiUrl = `{{ url_for('main.daily_expense_trend') }}?start_date=${startDate}&end_date=${endDate}`;
+        const trendCtx = document.getElementById('dailyTrendChart').getContext('2d');
+
+        fetch(trendApiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (dailyTrendChart) {
+                    dailyTrendChart.destroy();
+                }
+                dailyTrendChart = new Chart(trendCtx, {
+                    type: 'line',
                     data: {
                         labels: data.labels,
                         datasets: [{
-                            label: 'Expenses in ₹',
+                            label: 'Daily Expenses (₹)',
                             data: data.data,
-                            backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40', '#c9cbcf'],
-                            borderWidth: 1
+                            borderColor: 'rgb(255, 99, 132)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                            fill: true,
+                            tension: 0.1
                         }]
                     },
-                    options: { 
-                        responsive: true, 
+                    options: {
+                        responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { position: 'top' } } 
+                        scales: { y: { beginAtZero: true } }
                     }
                 });
-            } else {
-                ctx.canvas.style.display = 'none';
-                noDataMessage.style.display = 'block';
-            }
-        });
+            });
+    }
+
+    // Function to fetch data and render the category pie chart
+    function updateCategoryChart(startDate, endDate) {
+        const categoryApiUrl = `{{ url_for('main.transaction_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
+        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+        const noDataMessage = document.getElementById('no-pie-chart-data');
+
+        fetch(categoryApiUrl)
+            .then(response => response.json())
+            .then(data => {
+                if (categoryChart) {
+                    categoryChart.destroy();
+                }
+                if (data.labels.length > 0) {
+                    categoryCtx.canvas.style.display = 'block';
+                    noDataMessage.style.display = 'none';
+                    categoryChart = new Chart(categoryCtx, {
+                        type: 'pie',
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                data: data.data,
+                                backgroundColor: ['#ff6384', '#36a2eb', '#ffce56', '#4bc0c0', '#9966ff', '#ff9f40'],
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+                } else {
+                    categoryCtx.canvas.style.display = 'none';
+                    noDataMessage.style.display = 'block';
+                }
+            });
+    }
+    
+    // Event listeners for date inputs
+    startDateInput.addEventListener('change', updateAllCharts);
+    endDateInput.addEventListener('change', updateAllCharts);
+
+    // Initial load
+    updateAllCharts();
 });
 </script>
 {% endblock %}

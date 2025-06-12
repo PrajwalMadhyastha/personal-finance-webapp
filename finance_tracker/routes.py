@@ -3,12 +3,62 @@ from flask_login import login_required, current_user
 from . import db
 import decimal
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import abort
 from .models import Transaction, User, Category, Account
+from sqlalchemy import func
 
 # We can keep the blueprint name the same
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/api/daily_expense_trend')
+@login_required
+def daily_expense_trend():
+    """
+    API endpoint to provide data for the daily expense trend chart.
+    Accepts start_date and end_date as query parameters.
+    """
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        end_date = datetime.utcnow().date()
+        start_date = end_date - timedelta(days=29)
+    else:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+
+    end_date_inclusive = datetime.combine(end_date, datetime.max.time())
+    
+    # --- THIS IS THE CRITICAL FIX FOR MS SQL SERVER ---
+    # We use func.cast(..., db.Date) which translates to CAST(... AS DATE) in SQL.
+    # This is the correct syntax instead of the 'date()' function.
+    daily_expenses_query = db.session.query(
+        func.cast(Transaction.transaction_date, db.Date).label('date'),
+        func.sum(Transaction.amount).label('total_expenses')
+    ).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_type == 'expense',
+        Transaction.transaction_date.between(start_date, end_date_inclusive)
+    ).group_by(
+        func.cast(Transaction.transaction_date, db.Date) # Group by the same casted date
+    ).order_by(
+        func.cast(Transaction.transaction_date, db.Date) # Order by the same casted date
+    ).all()
+    # --- END OF FIX ---
+
+    # Create a dictionary of all days in the range, initialized to zero
+    date_range = (start_date + timedelta(days=n) for n in range((end_date - start_date).days + 1))
+    trend_data = {dt.strftime('%Y-%m-%d'): 0 for dt in date_range}
+
+    # Populate the dictionary with actual expense data
+    for day in daily_expenses_query:
+        trend_data[day.date.strftime('%Y-%m-%d')] = float(day.total_expenses)
+        
+    labels = list(trend_data.keys())
+    data = list(trend_data.values())
+
+    return jsonify({'labels': labels, 'data': data})
 
 @main_bp.route('/account/<int:account_id>')
 @login_required
