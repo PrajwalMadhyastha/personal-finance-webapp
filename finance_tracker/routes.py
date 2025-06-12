@@ -309,6 +309,55 @@ def budgets():
                            years=years_for_dropdown, month_names=month_names)
 
 
+@main_bp.route('/edit_budget/<int:budget_id>', methods=['GET', 'POST'])
+@login_required
+def edit_budget(budget_id):
+    """Handles editing an existing budget."""
+    budget = db.session.get(Budget, budget_id)
+    if not budget:
+        abort(404)
+    if budget.user_id != current_user.id:
+        abort(403) # Forbidden
+
+    if request.method == 'POST':
+        new_amount = request.form.get('amount')
+        # You could add logic here to allow changing month/year/category if desired,
+        # but for simplicity, we'll focus on updating the amount.
+        if new_amount:
+            budget.amount = decimal.Decimal(new_amount)
+            db.session.commit()
+            flash('Budget updated successfully!', 'success')
+            return redirect(url_for('main.budgets'))
+        else:
+            flash('Amount cannot be empty.', 'error')
+
+    # For a GET request, pass the necessary data to the template
+    current_year = datetime.utcnow().year
+    years_for_dropdown = range(current_year - 1, current_year + 5)
+    month_names = {i: datetime(current_year, i, 1).strftime('%B') for i in range(1, 13)}
+    
+    return render_template('edit_budget.html', 
+                           budget=budget,
+                           years=years_for_dropdown,
+                           month_names=month_names)
+
+
+@main_bp.route('/delete_budget/<int:budget_id>', methods=['POST'])
+@login_required
+def delete_budget(budget_id):
+    """Handles deleting a budget."""
+    budget = db.session.get(Budget, budget_id)
+    if not budget:
+        abort(404)
+    if budget.user_id != current_user.id:
+        abort(403)
+
+    db.session.delete(budget)
+    db.session.commit()
+    flash('Budget deleted successfully!', 'success')
+    return redirect(url_for('main.budgets'))
+
+
 # ===================================================================
 # CATEGORY, PROFILE & AUTH ROUTES
 # ===================================================================

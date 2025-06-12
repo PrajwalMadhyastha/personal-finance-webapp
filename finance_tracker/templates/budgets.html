@@ -67,8 +67,19 @@
                     <td>{{ budget.category.name }}</td>
                     <td>{{ month_names[budget.month] }} {{ budget.year }}</td>
                     <td style="text-align: right;">₹{{ "%.2f"|format(budget.amount) }}</td>
-                    <td style="text-align: center;"><small>N/A</small></td>
-                    <!-- Placeholder for future Edit/Delete -->
+                    <td>
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <!-- Edit Link -->
+                            <a href="{{ url_for('main.edit_budget', budget_id=budget.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
+                            
+                            <!-- Delete Form/Button -->
+                            <form action="{{ url_for('main.delete_budget', budget_id=budget.id) }}" method="POST" style="margin-bottom: 0;">
+                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this budget?');">
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
