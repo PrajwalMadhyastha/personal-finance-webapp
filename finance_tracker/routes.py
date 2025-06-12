@@ -5,11 +5,67 @@ import decimal
 from collections import defaultdict
 from datetime import datetime, timedelta
 from flask import abort
-from .models import Transaction, User, Category, Account
+from .models import Transaction, User, Category, Account, Budget
 from sqlalchemy import func
 
 # We can keep the blueprint name the same
 main_bp = Blueprint('main', __name__)
+
+@main_bp.route('/budgets', methods=['GET', 'POST'])
+@login_required
+def budgets():
+    """Handles displaying and creating monthly category budgets."""
+    if request.method == 'POST':
+        category_id = request.form.get('category_id')
+        amount = request.form.get('amount')
+        month = request.form.get('month')
+        year = request.form.get('year')
+
+        # Basic validation
+        if not all([category_id, amount, month, year]):
+            flash('All fields are required to set a budget.', 'error')
+            return redirect(url_for('main.budgets'))
+
+        # Check if a budget for this category/month/year already exists
+        existing_budget = Budget.query.filter_by(
+            user_id=current_user.id,
+            category_id=int(category_id),
+            month=int(month),
+            year=int(year)
+        ).first()
+
+        if existing_budget:
+            flash('A budget for this category and month already exists. Please edit the existing one.', 'warning')
+        else:
+            new_budget = Budget(
+                user_id=current_user.id,
+                category_id=int(category_id),
+                amount=decimal.Decimal(amount),
+                month=int(month),
+                year=int(year)
+            )
+            db.session.add(new_budget)
+            db.session.commit()
+            flash('Budget created successfully!', 'success')
+        
+        return redirect(url_for('main.budgets'))
+
+    # --- Logic for GET request ---
+    # Fetch data needed for the page
+    user_budgets = Budget.query.filter_by(user_id=current_user.id).order_by(Budget.year.desc(), Budget.month.desc()).all()
+    user_categories = Category.query.filter_by(user_id=current_user.id).order_by(Category.name).all()
+    
+    # Provide data for the dropdowns
+    current_year = datetime.utcnow().year
+    years_for_dropdown = range(current_year - 1, current_year + 5)
+    # A dictionary to map month numbers to names for display
+    month_names = {i: datetime(current_year, i, 1).strftime('%B') for i in range(1, 13)}
+
+    return render_template('budgets.html', 
+                           budgets=user_budgets, 
+                           categories=user_categories, 
+                           years=years_for_dropdown,
+                           month_names=month_names)
 
 @main_bp.route('/api/daily_expense_trend')
 @login_required

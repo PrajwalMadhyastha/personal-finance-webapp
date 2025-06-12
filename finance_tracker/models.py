@@ -21,6 +21,7 @@ class User(db.Model, UserMixin):
     accounts = db.relationship('Account', backref='user', lazy=True, cascade="all, delete-orphan")
     
     categories = db.relationship('Category', backref='user', lazy=True, cascade="all, delete-orphan")
+    budgets = db.relationship('Budget', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'account'
@@ -63,3 +64,18 @@ class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    budgets = db.relationship('Budget', backref='category', lazy=True, cascade="all, delete-orphan")
+
+class Budget(db.Model):
+    __tablename__ = 'budget'
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.Integer, nullable=False) # Will store 1-12
+    year = db.Column(db.Integer, nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
+
+    # This constraint prevents a user from creating more than one budget
+    # for the same category in the same month and year.
+    __table_args__ = (db.UniqueConstraint('user_id', 'category_id', 'month', 'year', name='_user_category_month_year_uc'),)
