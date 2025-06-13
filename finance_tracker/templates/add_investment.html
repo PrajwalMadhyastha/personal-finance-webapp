@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Add Investment Transaction{% endblock %}
+
+{% block content %}
+<article>
+    <hgroup>
+        <h2>Record an Investment Transaction</h2>
+        <p>Log a buy or sell action for an asset like a stock or ETF.</p>
+    </hgroup>
+    <form method="POST" action="{{ url_for('main.add_investment') }}">
+        <label for="ticker_symbol">Ticker Symbol</label>
+        <input type="text" id="ticker_symbol" name="ticker_symbol" placeholder="e.g., AAPL, VOO" required style="text-transform:uppercase">
+
+        <div class="grid">
+            <div>
+                <label for="transaction_type">Transaction Type</label>
+                <select id="transaction_type" name="transaction_type" required>
+                    <option value="buy" selected>Buy</option>
+                    <option value="sell">Sell</option>
+                </select>
+            </div>
+            <div>
+                <label for="transaction_date">Transaction Date</label>
+                <input type="date" id="transaction_date" name="transaction_date" required>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div>
+                <label for="quantity">Quantity</label>
+                <input type="number" step="any" id="quantity" name="quantity" placeholder="e.g., 10.5" required>
+            </div>
+            <div>
+                <label for="price_per_unit">Price Per Unit (₹)</label>
+                <input type="number" step="any" id="price_per_unit" name="price_per_unit" placeholder="e.g., 150.75" required>
+            </div>
+        </div>
+
+        <div class="grid">
+            <button type="submit">Record Transaction</button>
+            <a href="{{ url_for('main.portfolio') }}" role="button" class="secondary outline">Cancel</a>
+        </div>
+    </form>
+</article>
+{% endblock %}

@@ -12,7 +12,7 @@ import csv
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories, RecurringTransaction
+from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories, RecurringTransaction, Asset, InvestmentTransaction
 from sqlalchemy import func, select, or_
 from sqlalchemy.orm import selectinload
 import calendar
@@ -572,9 +572,14 @@ def tag_detail(tag_name):
 @login_required
 def portfolio():
     """Renders the main investment portfolio page."""
-    # For now, we are just rendering the template.
-    # In the future, we will add logic here to fetch and process portfolio data.
-    return render_template('portfolio.html')
+    # Fetch all investment transactions for the current user
+    investments_stmt = select(InvestmentTransaction).filter_by(
+        user_id=current_user.id
+    ).order_by(InvestmentTransaction.transaction_date.desc())
+    
+    investment_transactions = db.session.execute(investments_stmt).scalars().all()
+    
+    return render_template('portfolio.html', transactions=investment_transactions)
 
 
 # ===================================================================
@@ -895,3 +900,55 @@ def generate_recurring_transactions():
     success_message = f"Successfully generated {transactions_created} transaction(s)."
     current_app.logger.info(success_message)
     return jsonify({'status': 'success', 'message': success_message})
+
+
+@main_bp.route('/portfolio/add', methods=['GET', 'POST'])
+@login_required
+def add_investment():
+    if request.method == 'POST':
+        ticker = request.form.get('ticker_symbol', '').strip().upper()
+        trans_type = request.form.get('transaction_type')
+        quantity_str = request.form.get('quantity')
+        price_str = request.form.get('price_per_unit')
+        date_str = request.form.get('transaction_date')
+
+        # --- Validation (can be enhanced further) ---
+        if not all([ticker, trans_type, quantity_str, price_str, date_str]):
+            flash('All fields are required.', 'error')
+            return redirect(url_for('main.add_investment'))
+
+        # --- "Find or Create" Asset Logic ---
+        # First, try to find an existing asset with the given ticker
+        asset_stmt = select(Asset).where(func.upper(Asset.ticker_symbol) == ticker)
+        asset = db.session.execute(asset_stmt).scalar_one_or_none()
+        
+        # If the asset doesn't exist, create a new one
+        if not asset:
+            # For now, we'll use the ticker as the name and default the type
+            asset = Asset(
+                name=ticker, # In a real app, you might fetch this from an API
+                ticker_symbol=ticker,
+                asset_type='Stock' # Default asset type
+            )
+            db.session.add(asset)
+            # We don't commit yet; it will be part of the transaction's commit
+            flash(f'New asset {ticker} added to your database.', 'info')
+
+        # --- Create the InvestmentTransaction ---
+        new_investment_trans = InvestmentTransaction(
+            user_id=current_user.id,
+            asset=asset, # Link to the found or newly created asset
+            transaction_type=trans_type,
+            quantity=decimal.Decimal(quantity_str),
+            price_per_unit=decimal.Decimal(price_str),
+            transaction_date=datetime.strptime(date_str, '%Y-%m-%d')
+        )
+
+        db.session.add(new_investment_trans)
+        db.session.commit()
+
+        flash('Investment transaction recorded successfully!', 'success')
+        return redirect(url_for('main.portfolio'))
+
+    # For a GET request, just show the form
+    return render_template('add_investment.html')
