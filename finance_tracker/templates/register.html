@@ -5,15 +5,91 @@
 {% block content %}
     <h2>Create a New Account</h2>
     <form method="POST" action="{{ url_for('main.register') }}">
+        
         <label for="username">Username</label>
-        <input type="text" id="username" name="username" required>
+        <input type="text" id="username" name="username" required autocomplete="off" minlength="3">
+        <small id="username-feedback" class="feedback-text"></small>
 
         <label for="email">Email</label>
-        <input type="email" id="email" name="email" required>
+        <input type="email" id="email" name="email" required autocomplete="off">
+        <small id="email-feedback" class="feedback-text"></small>
 
         <label for="password">Password</label>
         <input type="password" id="password" name="password" required>
 
         <button type="submit">Register</button>
     </form>
+{% endblock %}
+
+
+{% block scripts %}
+<style>
+    /* This CSS from the previous step is correct */
+    .feedback-text {
+        font-weight: bold;
+        display: block;
+        min-height: 1.2em;
+        margin-top: -0.5rem;
+        margin-bottom: 0.5rem;
+    }
+    .feedback-text.available {
+        color: var(--pico-color-green-500);
+    }
+    .feedback-text.taken {
+        color: var(--pico-color-red-500);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    
+    // The JavaScript function is now corrected
+    function setupRealtimeValidation(inputId, feedbackId, apiUrl, queryParamName, minLength) {
+        const inputField = document.getElementById(inputId);
+        const feedbackSpan = document.getElementById(feedbackId);
+        let debounceTimer;
+
+        inputField.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            const value = inputField.value.trim();
+            feedbackSpan.textContent = '';
+            feedbackSpan.className = 'feedback-text';
+
+            if (value.length < minLength) {
+                return;
+            }
+
+            debounceTimer = setTimeout(() => {
+                feedbackSpan.textContent = 'Checking...';
+                
+                // --- THIS IS THE CORRECTED LOGIC ---
+                // It now uses the correct apiUrl and queryParamName passed into the function
+                const fullApiUrl = `${apiUrl}?${queryParamName}=${encodeURIComponent(value)}`;
+                
+                fetch(fullApiUrl)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.available === true) {
+                            feedbackSpan.textContent = 'Available!';
+                            feedbackSpan.classList.add('available');
+                        } else if (data.available === false) {
+                            feedbackSpan.textContent = 'Taken';
+                            feedbackSpan.classList.add('taken');
+                        } else {
+                            feedbackSpan.textContent = '';
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`Error checking ${inputId}:`, error);
+                        feedbackSpan.textContent = '';
+                    });
+            }, 500);
+        });
+    }
+
+    // --- We now call the function with the correct, specific parameters for each field ---
+    setupRealtimeValidation('username', 'username-feedback', "{{ url_for('main.check_username') }}", 'username', 3);
+    setupRealtimeValidation('email', 'email-feedback', "{{ url_for('main.check_email') }}", 'email', 5);
+});
+</script>
 {% endblock %}

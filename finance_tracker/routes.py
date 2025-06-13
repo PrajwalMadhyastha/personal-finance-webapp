@@ -759,3 +759,40 @@ def daily_expense_trend():
         'labels': list(trend_data.keys()),
         'data': list(trend_data.values())
     })
+
+@main_bp.route('/api/check-username')
+def check_username():
+    """Checks if a username is already taken."""
+    username = request.args.get('username', '').strip()
+
+    # Don't check for empty or very short usernames
+    if len(username) < 3:
+        # Return a neutral or empty response
+        return jsonify({})
+
+    # Query the database for an existing user with that username
+    stmt = select(User).where(User.username == username)
+    user = db.session.execute(stmt).scalar_one_or_none()
+
+    # Return a JSON response indicating if the username is available
+    if user:
+        return jsonify({'available': False})
+    else:
+        return jsonify({'available': True})
+
+@main_bp.route('/api/check-email')
+def check_email():
+    """Checks if an email is already taken."""
+    email = request.args.get('email', '').strip().lower()
+
+    # A simple check to see if it looks like an email
+    if '@' not in email or '.' not in email or len(email) < 5:
+        return jsonify({})
+
+    stmt = select(User).where(User.email == email)
+    user = db.session.execute(stmt).scalar_one_or_none()
+
+    if user:
+        return jsonify({'available': False})
+    else:
+        return jsonify({'available': True})
