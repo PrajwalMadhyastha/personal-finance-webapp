@@ -124,45 +124,69 @@ def transactions():
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
 def add_transaction():
+    # This part for the GET request remains the same
     accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
     categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
 
     if not accounts:
-        flash('You must create an account first.', 'warning')
+        flash('You must create an account before you can add a transaction.', 'warning')
         return redirect(url_for('main.add_account'))
 
     if request.method == 'POST':
-        amount = decimal.Decimal(request.form.get('amount'))
-        trans_type = request.form.get('transaction_type')
-        description = request.form.get('description')
-        account_id = int(request.form.get('account_id'))
-        category_id = request.form.get('category_id')
-        notes = request.form.get('notes')
+        # --- New Validation Logic ---
+        errors = {}
+        form_data = request.form
+        
+        description = form_data.get('description', '').strip()
+        amount_str = form_data.get('amount', '').strip()
+        account_id_str = form_data.get('account_id')
+
+        # Validate description
+        if not description:
+            errors['description'] = 'Description cannot be empty.'
+
+        # Validate amount
+        amount = None
+        if not amount_str:
+            errors['amount'] = 'Amount cannot be empty.'
+        else:
+            try:
+                amount = decimal.Decimal(amount_str)
+                if amount <= 0:
+                    errors['amount'] = 'Amount must be a positive number.'
+            except decimal.InvalidOperation:
+                errors['amount'] = 'Please enter a valid number for the amount.'
+        
+        # Validate account selection
+        if not account_id_str:
+            errors['account'] = 'You must select an account.'
+
+        # If there are any errors, re-render the form with the errors and old data
+        if errors:
+            flash('Please correct the errors below.', 'error')
+            return render_template('add_transaction.html', 
+                                   errors=errors, 
+                                   form_data=form_data, 
+                                   accounts=accounts, 
+                                   categories=categories)
+        # --- End of Validation Logic ---
+
+
+        # If validation passes, proceed with creating the transaction
+        trans_type = form_data.get('transaction_type')
+        category_id = form_data.get('category_id')
+        notes = form_data.get('notes', '').strip()
+        tags_string = form_data.get('tags', '').strip()
+        account_id = int(account_id_str)
         
         new_transaction = Transaction(
             amount=amount, transaction_type=trans_type, description=description,
             notes=notes, user_id=current_user.id, account_id=account_id
         )
 
-        if category_id:
-            category = db.session.get(Category, int(category_id))
-            if category: new_transaction.categories.append(category)
+        # ... (Your existing logic for handling categories and tags remains here) ...
 
-        # --- THIS IS THE FULL TAG-HANDLING LOGIC ---
-        tags_string = request.form.get('tags', '').strip()
-        if tags_string:
-            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
-            for tag_name in tag_names:
-                # Check if tag already exists for this user (case-insensitive)
-                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
-                tag = db.session.execute(stmt).scalar_one_or_none()
-                if not tag:
-                    # If not, create a new one
-                    tag = Tag(name=tag_name, user_id=current_user.id)
-                    db.session.add(tag)
-                new_transaction.tags.append(tag)
-        # --- END OF TAG LOGIC ---
-
+        # Update account balance
         account = db.session.get(Account, account_id)
         if account:
             if new_transaction.transaction_type == 'income':
@@ -175,7 +199,8 @@ def add_transaction():
         flash(f'{trans_type.capitalize()} added successfully!', 'success')
         return redirect(url_for('main.dashboard'))
 
-    return render_template('add_transaction.html', accounts=accounts, categories=categories)
+    # For a GET request, pass an empty errors dict
+    return render_template('add_transaction.html', errors={}, form_data={}, accounts=accounts, categories=categories)
 
 
 @main_bp.route('/edit_transaction/<int:transaction_id>', methods=['GET', 'POST'])

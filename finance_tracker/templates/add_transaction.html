@@ -9,18 +9,24 @@
             <div>
                 <label for="transaction_type">Transaction Type</label>
                 <fieldset>
-                    <label for="expense"><input type="radio" id="expense" name="transaction_type" value="expense" checked> Expense</label>
-                    <label for="income"><input type="radio" id="income" name="transaction_type" value="income"> Income</label>
+                    <label for="expense"><input type="radio" id="expense" name="transaction_type" value="expense" {% if not form_data.transaction_type or form_data.transaction_type == 'expense' %}checked{% endif %}> Expense</label>
+                    <label for="income"><input type="radio" id="income" name="transaction_type" value="income" {% if form_data.transaction_type == 'income' %}checked{% endif %}> Income</label>
                 </fieldset>
             </div>
             <div>
                 <label for="amount">Amount (₹)</label>
-                <input type="number" step="0.01" id="amount" name="amount" required>
+                <input type="number" step="0.01" id="amount" name="amount" value="{{ form_data.get('amount', '') }}" required>
+                {% if errors.get('amount') %}
+                    <small class="error-text">{{ errors.get('amount') }}</small>
+                {% endif %}
             </div>
         </div>
 
         <label for="description">Description</label>
-        <input type="text" id="description" name="description" required size="50">
+        <input type="text" id="description" name="description" value="{{ form_data.get('description', '') }}" required size="50">
+        {% if errors.get('description') %}
+            <small class="error-text">{{ errors.get('description') }}</small>
+        {% endif %}
 
         <div class="grid">
             <div>
@@ -28,28 +34,41 @@
                 <select id="account_id" name="account_id" required>
                     <option value="" disabled selected>Select an account</option>
                     {% for account in accounts %}
-                        <option value="{{ account.id }}">{{ account.name }}</option>
+                        <option value="{{ account.id }}" {% if form_data.get('account_id')|int == account.id %}selected{% endif %}>{{ account.name }}</option>
                     {% endfor %}
                 </select>
+                {% if errors.get('account') %}
+                    <small class="error-text">{{ errors.get('account') }}</small>
+                {% endif %}
             </div>
             <div>
                 <label for="category_id">Category (Optional)</label>
                 <select id="category_id" name="category_id">
                     <option value="">None</option>
                     {% for category in categories %}
-                        <option value="{{ category.id }}">{{ category.name }}</option>
+                        <option value="{{ category.id }}" {% if form_data.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>
                     {% endfor %}
                 </select>
             </div>
         </div>
         
         <label for="tags">Tags (comma-separated)</label>
-        <input type="text" id="tags" name="tags" placeholder="e.g., vacation, work-expense, urgent">
+        <input type="text" id="tags" name="tags" placeholder="e.g., vacation, work-expense, urgent" value="{{ form_data.get('tags', '') }}">
         
         <label for="notes">Notes (Optional)</label>
-        <textarea id="notes" name="notes" rows="3"></textarea>
+        <textarea id="notes" name="notes" rows="3">{{ form_data.get('notes', '') }}</textarea>
         
         <br>
         <button type="submit">Add Transaction</button>
     </form>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    /* Simple style to make error messages stand out */
+    .error-text {
+        color: var(--pico-color-red-500);
+        font-weight: bold;
+    }
+</style>
 {% endblock %}
