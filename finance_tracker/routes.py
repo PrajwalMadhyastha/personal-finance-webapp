@@ -18,7 +18,10 @@ from sqlalchemy.orm import selectinload
 import calendar
 
 from dateutil.relativedelta import relativedelta
-from flask import current_app
+from flask import (
+    Blueprint, render_template, request, redirect, url_for, flash, 
+    abort, jsonify, Response, current_app
+)
 
 main_bp = Blueprint('main', __name__)
 
@@ -824,22 +827,26 @@ def recurring_transactions():
         recurring_list=recurring_list
     )
     
-@main_bp.route('/tasks/generate_recurring')
+@main_bp.route('/tasks/generate_recurring', methods=['POST'])
 def generate_recurring_transactions():
     """
     A protected task endpoint to generate transactions from recurring rules.
-    This should be triggered by a cron job or a scheduler.
+    This should only be triggered by a secured, scheduled job.
     """
+    # 1. Security Check: Verify the secret key from the request header
     task_secret_key = current_app.config.get('TASK_SECRET_KEY')
-    request_secret = request.args.get('secret')
+    request_secret = request.headers.get('X-App-Key')
     
+    # Abort if secrets are missing or do not match
     if not task_secret_key or request_secret != task_secret_key:
         current_app.logger.warning("Unauthorized attempt to access recurring task endpoint.")
-        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+        abort(403) # Use abort(403) for "Forbidden"
 
+    # 2. Get today's date
     today = datetime.now(timezone.utc).date()
     current_app.logger.info(f"Running recurring transaction job on {today}...")
     
+    # 3. Find all due recurring rules
     due_rules_stmt = select(RecurringTransaction).where(RecurringTransaction.next_due_date <= today)
     due_rules = db.session.execute(due_rules_stmt).scalars().all()
 
@@ -849,47 +856,32 @@ def generate_recurring_transactions():
 
     transactions_created = 0
     for rule in due_rules:
-        current_app.logger.info(f"Processing due rule ID: {rule.id} for user {rule.user_id}")
-        
-        # --- THIS IS THE CRITICAL FIX ---
-        # Convert the 'date' object into a 'datetime' object at the start of the day.
+        # 4. Create new Transaction from the rule
         transaction_datetime = datetime.combine(rule.next_due_date, datetime.min.time(), tzinfo=timezone.utc)
-        # --- END OF FIX ---
-        
         new_transaction = Transaction(
-            description=rule.description,
-            amount=rule.amount,
-            transaction_type=rule.transaction_type,
-            transaction_date=transaction_datetime, # Use the corrected datetime object
-            user_id=rule.user_id,
-            account_id=rule.account_id
+            description=rule.description, amount=rule.amount,
+            transaction_type=rule.transaction_type, transaction_date=transaction_datetime,
+            user_id=rule.user_id, account_id=rule.account_id
         )
+        if rule.category: new_transaction.categories.append(rule.category)
         
-        if rule.category_id:
-            category = db.session.get(Category, rule.category_id)
-            if category:
-                new_transaction.categories.append(category)
-        
-        account = db.session.get(Account, rule.account_id)
-        if account:
+        # 5. Update account balance
+        if rule.account:
             if new_transaction.transaction_type == 'income':
-                account.balance += new_transaction.amount
-            else: # expense
-                account.balance -= new_transaction.amount
+                rule.account.balance += new_transaction.amount
+            else:
+                rule.account.balance -= new_transaction.amount
 
-        if rule.recurrence_interval == 'daily':
-            rule.next_due_date += timedelta(days=1)
-        elif rule.recurrence_interval == 'weekly':
-            rule.next_due_date += timedelta(weeks=1)
-        elif rule.recurrence_interval == 'monthly':
-            rule.next_due_date += relativedelta(months=1)
-        elif rule.recurrence_interval == 'yearly':
-            rule.next_due_date += relativedelta(years=1)
-
+        # 6. Calculate the next due date
+        if rule.recurrence_interval == 'daily': rule.next_due_date += timedelta(days=1)
+        elif rule.recurrence_interval == 'weekly': rule.next_due_date += timedelta(weeks=1)
+        elif rule.recurrence_interval == 'monthly': rule.next_due_date += relativedelta(months=1)
+        elif rule.recurrence_interval == 'yearly': rule.next_due_date += relativedelta(years=1)
+        
         db.session.add(new_transaction)
         transactions_created += 1
-        current_app.logger.info(f"Created new transaction. Updated next_due_date for rule {rule.id} to {rule.next_due_date}.")
 
+    # 7. Commit all changes to the database
     db.session.commit()
     
     success_message = f"Successfully generated {transactions_created} transaction(s)."

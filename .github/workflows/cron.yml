@@ -1,0 +1,24 @@
+name: Scheduled Recurring Transaction Job
+
+on:
+  # This schedule runs the job every day at 05:00 UTC.
+  # You can use https://crontab.guru to build your own schedule.
+  schedule:
+    - cron: '0 5 * * *'
+  
+  # This allows you to run the workflow manually from the Actions tab on GitHub.
+  workflow_dispatch:
+
+jobs:
+  run-recurring-transaction-task:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Recurring Transaction Generation
+        run: |
+          # Use curl to make a POST request to the application's task endpoint.
+          # -X POST specifies the request method.
+          # -H adds the required security header, pulling the value from GitHub secrets.
+          # -f makes curl fail silently on server errors (like 403) instead of printing HTML.
+          curl -f -X POST \
+            -H "X-App-Key: ${{ secrets.RECURRING_JOB_SECRET }}" \
+            "${{ secrets.APP_URL }}/tasks/generate_recurring"
