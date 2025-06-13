@@ -90,20 +90,16 @@ class RecurringTransaction(db.Model):
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     transaction_type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
     
-    # How often the transaction occurs
     recurrence_interval = db.Column(db.String(50), nullable=False) # e.g., 'daily', 'weekly', 'monthly', 'yearly'
     
-    # The date the recurrence should begin
     start_date = db.Column(db.Date, nullable=False)
     
-    # The date the next transaction should be created
     next_due_date = db.Column(db.Date, nullable=False)
+    last_processed_date = db.Column(db.Date, nullable=True)
     
-    # Foreign Keys to link to other models
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     
-    # A recurring transaction is linked to a single category
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True) # Nullable for income
     
     # Define relationships to load related objects

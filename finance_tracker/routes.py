@@ -17,6 +17,9 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.orm import selectinload
 import calendar
 
+from dateutil.relativedelta import relativedelta
+from flask import current_app
+
 main_bp = Blueprint('main', __name__)
 
 # ===================================================================
@@ -779,72 +782,17 @@ def check_email():
         return jsonify({'available': False})
     else:
         return jsonify({'available': True})
-
-@main_bp.route('/report/budgets')
-@login_required
-def budget_report():
-    now_utc = datetime.now(timezone.utc)
-    # Default to current month/year if not provided in the URL
-    selected_year = request.args.get('year', default=now_utc.year, type=int)
-    selected_month = request.args.get('month', default=now_utc.month, type=int)
-
-    # --- Data Fetching and Processing ---
-
-    # 1. Get all budgets for the selected period
-    budgets_stmt = select(Budget).filter_by(
-        user_id=current_user.id,
-        month=selected_month,
-        year=selected_year
-    )
-    budgets_for_period = db.session.execute(budgets_stmt).scalars().all()
-
-    # 2. Get all expenses for the selected period, grouped by category
-    expenses_stmt = select(
-        transaction_categories.c.category_id,
-        func.sum(Transaction.amount)
-    ).join(
-        Transaction, Transaction.id == transaction_categories.c.transaction_id
-    ).where(
-        Transaction.user_id == current_user.id,
-        Transaction.transaction_type == 'expense',
-        func.extract('month', Transaction.transaction_date) == selected_month,
-        func.extract('year', Transaction.transaction_date) == selected_year
-    ).group_by(transaction_categories.c.category_id)
     
-    spending_by_category = {row[0]: row[1] for row in db.session.execute(expenses_stmt).all()}
-
-    # 3. Process the data into a final list for the template
-    report_data = []
-    for budget in budgets_for_period:
-        actual_spent = spending_by_category.get(budget.category_id, decimal.Decimal(0))
-        difference = budget.amount - actual_spent
-        
-        report_data.append({
-            'category_name': budget.category.name,
-            'budgeted_amount': budget.amount,
-            'actual_spent': actual_spent,
-            'difference': difference
-        })
-
-    # Data for the dropdown selectors
-    years = range(now_utc.year + 1, now_utc.year - 5, -1)
-    month_names = {i: name for i, name in enumerate(calendar.month_name) if i > 0}
-
-    return render_template(
-        'budget_report.html',
-        report_data=report_data,
-        years=years,
-        month_names=month_names,
-        selected_year=selected_year,
-        selected_month=selected_month
-    )
-
 @main_bp.route('/recurring', methods=['GET', 'POST'])
 @login_required
 def recurring_transactions():
     if request.method == 'POST':
-        # --- Logic to create a new recurring transaction ---
-        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        start_date_str = request.form.get('start_date')
+        if not start_date_str:
+            flash('Start date is required.', 'error')
+            return redirect(url_for('main.recurring_transactions'))
+
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         
         new_recurring = RecurringTransaction(
             user_id=current_user.id,
@@ -853,7 +801,7 @@ def recurring_transactions():
             transaction_type=request.form.get('transaction_type'),
             recurrence_interval=request.form.get('recurrence_interval'),
             start_date=start_date,
-            next_due_date=start_date,  # Initially, the next due date is the start date
+            next_due_date=start_date,
             account_id=int(request.form.get('account_id')),
             category_id=int(request.form.get('category_id')) if request.form.get('category_id') else None
         )
@@ -862,12 +810,9 @@ def recurring_transactions():
         flash('Recurring transaction scheduled successfully!', 'success')
         return redirect(url_for('main.recurring_transactions'))
 
-    # --- Logic for GET request (displaying the page) ---
-    # Fetch data needed for the form dropdowns and the list
+    # --- Logic for GET request ---
     accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
     categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
-    
-    # Fetch existing recurring transactions to display in the list
     recurring_list = db.session.execute(
         select(RecurringTransaction).filter_by(user_id=current_user.id).order_by(RecurringTransaction.next_due_date)
     ).scalars().all()
@@ -878,3 +823,75 @@ def recurring_transactions():
         categories=categories,
         recurring_list=recurring_list
     )
+    
+@main_bp.route('/tasks/generate_recurring')
+def generate_recurring_transactions():
+    """
+    A protected task endpoint to generate transactions from recurring rules.
+    This should be triggered by a cron job or a scheduler.
+    """
+    task_secret_key = current_app.config.get('TASK_SECRET_KEY')
+    request_secret = request.args.get('secret')
+    
+    if not task_secret_key or request_secret != task_secret_key:
+        current_app.logger.warning("Unauthorized attempt to access recurring task endpoint.")
+        return jsonify({'status': 'error', 'message': 'Unauthorized'}), 403
+
+    today = datetime.now(timezone.utc).date()
+    current_app.logger.info(f"Running recurring transaction job on {today}...")
+    
+    due_rules_stmt = select(RecurringTransaction).where(RecurringTransaction.next_due_date <= today)
+    due_rules = db.session.execute(due_rules_stmt).scalars().all()
+
+    if not due_rules:
+        current_app.logger.info("No recurring transactions are due today.")
+        return jsonify({'status': 'success', 'message': 'No transactions to generate.'})
+
+    transactions_created = 0
+    for rule in due_rules:
+        current_app.logger.info(f"Processing due rule ID: {rule.id} for user {rule.user_id}")
+        
+        # --- THIS IS THE CRITICAL FIX ---
+        # Convert the 'date' object into a 'datetime' object at the start of the day.
+        transaction_datetime = datetime.combine(rule.next_due_date, datetime.min.time(), tzinfo=timezone.utc)
+        # --- END OF FIX ---
+        
+        new_transaction = Transaction(
+            description=rule.description,
+            amount=rule.amount,
+            transaction_type=rule.transaction_type,
+            transaction_date=transaction_datetime, # Use the corrected datetime object
+            user_id=rule.user_id,
+            account_id=rule.account_id
+        )
+        
+        if rule.category_id:
+            category = db.session.get(Category, rule.category_id)
+            if category:
+                new_transaction.categories.append(category)
+        
+        account = db.session.get(Account, rule.account_id)
+        if account:
+            if new_transaction.transaction_type == 'income':
+                account.balance += new_transaction.amount
+            else: # expense
+                account.balance -= new_transaction.amount
+
+        if rule.recurrence_interval == 'daily':
+            rule.next_due_date += timedelta(days=1)
+        elif rule.recurrence_interval == 'weekly':
+            rule.next_due_date += timedelta(weeks=1)
+        elif rule.recurrence_interval == 'monthly':
+            rule.next_due_date += relativedelta(months=1)
+        elif rule.recurrence_interval == 'yearly':
+            rule.next_due_date += relativedelta(years=1)
+
+        db.session.add(new_transaction)
+        transactions_created += 1
+        current_app.logger.info(f"Created new transaction. Updated next_due_date for rule {rule.id} to {rule.next_due_date}.")
+
+    db.session.commit()
+    
+    success_message = f"Successfully generated {transactions_created} transaction(s)."
+    current_app.logger.info(success_message)
+    return jsonify({'status': 'success', 'message': success_message})

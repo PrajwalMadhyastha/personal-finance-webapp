@@ -46,7 +46,9 @@ def create_app():
     app.config.from_mapping(
         SECRET_KEY=os.getenv('SECRET_KEY', 'a_default_fallback_secret_key_for_dev'),
         SQLALCHEMY_DATABASE_URI=db_uri,
-        SQLALCHEMY_TRACK_MODIFICATIONS=False
+        SQLALCHEMY_TRACK_MODIFICATIONS=False,
+        TASK_SECRET_KEY=os.getenv('TASK_SECRET_KEY')
+
     )
 
     # --- Initialize extensions ---
