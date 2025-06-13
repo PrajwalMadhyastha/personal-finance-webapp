@@ -37,38 +37,61 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
-    # Using modern db.session.execute(select(...)) syntax
+    # --- Data for Tables (This part is correct) ---
     accounts_stmt = select(Account).filter_by(user_id=current_user.id)
     user_accounts = db.session.execute(accounts_stmt).scalars().all()
     
     trans_stmt = select(Transaction).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).limit(10)
     recent_transactions = db.session.execute(trans_stmt).scalars().all()
 
+    # --- NEW, MORE RELIABLE BUDGET PROGRESS LOGIC ---
     now_utc = datetime.now(timezone.utc)
     current_month = now_utc.month
     current_year = now_utc.year
 
-    budget_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
-    current_budgets = db.session.execute(budget_stmt).scalars().all()
+    # 1. Get all budgets for the current month (this is correct)
+    current_budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
+    current_budgets = db.session.execute(current_budgets_stmt).scalars().all()
+
+    # 2. Get all expenses for the current month, grouped by category, in ONE query.
+    # This is the key change that makes the logic robust.
+    expenses_by_category_stmt = select(
+        Category.id, func.sum(Transaction.amount)
+    ).join(
+        Transaction.categories
+    ).where(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_type == 'expense',
+        func.extract('month', Transaction.transaction_date) == current_month,
+        func.extract('year', Transaction.transaction_date) == current_year
+    ).group_by(
+        Category.id
+    )
     
+    # Store the results in a simple dictionary for easy lookup, e.g., {category_id: total_spent}
+    expenses_data = {row[0]: row[1] for row in db.session.execute(expenses_by_category_stmt).all()}
+
+    # 3. Process the budget data using our efficient lookup dictionary
     budget_progress_data = []
     for budget in current_budgets:
-        spent_stmt = select(func.sum(Transaction.amount)).where(
-            Transaction.user_id == current_user.id,
-            Transaction.categories.any(Category.id == budget.category_id),
-            Transaction.transaction_type == 'expense',
-            func.extract('month', Transaction.transaction_date) == current_month,
-            func.extract('year', Transaction.transaction_date) == current_year
-        )
-        total_spent = db.session.execute(spent_stmt).scalar() or 0.0
+        # Get the total spent for this budget's category from our dictionary. Default to 0 if no expenses.
+        total_spent = expenses_data.get(budget.category_id, 0.0)
+
         percentage_used = (total_spent / budget.amount) * 100 if budget.amount > 0 else 0
+        
+        status = 'ok'
+        if percentage_used > 100: status = 'danger'
+        elif percentage_used > 85: status = 'warning'
+
         budget_progress_data.append({
             'category_name': budget.category.name,
             'budget_limit': budget.amount,
             'total_spent': total_spent,
-            'percentage_used': percentage_used
+            'percentage_used': percentage_used,
+            'status': status
         })
-
+    # --- END OF NEW LOGIC ---
+    
     return render_template('dashboard.html', 
                            accounts=user_accounts, 
                            transactions=recent_transactions,

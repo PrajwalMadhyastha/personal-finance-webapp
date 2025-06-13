@@ -4,17 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <title>{% block title %}My Finance App{% endblock %}</title>
     <style>
+        /* All necessary CSS rules */
         .flashes { list-style: none; padding: 0; margin-top: 1em; }
         .flashes article { margin-bottom: 1em; }
         .income { color: var(--pico-color-green-600); }
         .expense { color: var(--pico-color-red-600); }
+        .badge {
+            display: inline-block; padding: 0.25em 0.6em; font-size: 75%;
+            font-weight: 700; line-height: 1; text-align: center;
+            white-space: nowrap; vertical-align: baseline; border-radius: 0.375rem;
+            background-color: #e9ecef; color: #495057; text-decoration: none;
+        }
+        .progress-bar-track { height: 1rem; background-color: #f1f2f4; border-radius: 0.5rem; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background-color: var(--pico-primary); transition: width 0.5s ease-in-out; }
+        .progress-bar-fill.warning { background-color: var(--pico-color-amber-500); }
+        .progress-bar-fill.danger { background-color: var(--pico-color-red-600); }
     </style>
 </head>
 <body>
-
     <main class="container">
         <nav>
             <ul>
@@ -36,29 +45,25 @@
                 {% endif %}
             </ul>
         </nav>
-    
+        
         {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
+            {% if messages %}
             <div class="flashes">
             {% for category, message in messages %}
-              <article class="{{ category }}">
-                {{ message }}
-              </article>
+              <article class="{{ category }}">{{ message }}</article>
             {% endfor %}
             </div>
-          {% endif %}
+            {% endif %}
         {% endwith %}
-    
         <hr>
 
         {% block content %}{% endblock %}
 
-        </main>
+    </main>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     {% block scripts %}{% endblock %}
 
-    </main>
 </body>
 </html>

@@ -28,15 +28,24 @@
             {% for budget in budget_progress %}
                 <div>
                     <label for="budget-{{ loop.index }}">{{ budget.category_name }}</label>
-                    <progress id="budget-{{ loop.index }}" value="{{ budget.total_spent }}" max="{{ budget.budget_limit }}"></progress>
-                    <small>₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} ({{ "%.0f"|format(budget.percentage_used) }}%)</small>
+                    
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill {{ budget.status }}" 
+                            style="width: {{ [budget.percentage_used, 100] | min }}%;">
+                        </div>
+                    </div>
+                    
+                    <small>
+                        ₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} 
+                        ({{ "%.0f"|format(budget.percentage_used) }}%)
+                    </small>
                 </div>
                 {% if not loop.last %}<br>{% endif %}
             {% endfor %}
         {% else %}
             <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
         {% endif %}
-    </article>
+    </article> 
 
     <div class="grid">
         <article>
