@@ -568,6 +568,14 @@ def tag_detail(tag_name):
     
     return render_template('tag_detail.html', tag_name=tag.name, transactions=transactions)
 
+@main_bp.route('/portfolio')
+@login_required
+def portfolio():
+    """Renders the main investment portfolio page."""
+    # For now, we are just rendering the template.
+    # In the future, we will add logic here to fetch and process portfolio data.
+    return render_template('portfolio.html')
+
 
 # ===================================================================
 # API & REPORTING ROUTES

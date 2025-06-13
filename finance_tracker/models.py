@@ -1,6 +1,6 @@
 from flask_login import UserMixin
 from . import db
-from datetime import datetime
+from datetime import datetime, timezone
 
 transaction_tags = db.Table('transaction_tags',
     db.Column('transaction_id', db.Integer, db.ForeignKey('transaction.id'), primary_key=True),
@@ -25,6 +25,7 @@ class User(db.Model, UserMixin):
     budgets = db.relationship('Budget', backref='user', lazy=True, cascade="all, delete-orphan")
     tags = db.relationship('Tag', backref='user', lazy=True, cascade="all, delete-orphan")
     recurring_transactions = db.relationship('RecurringTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
+    investment_transactions = db.relationship('InvestmentTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'account'
@@ -105,3 +106,25 @@ class RecurringTransaction(db.Model):
     # Define relationships to load related objects
     account = db.relationship('Account', backref='recurring_transactions')
     category = db.relationship('Category', backref='recurring_transactions')
+
+class Asset(db.Model):
+    __tablename__ = 'asset'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(150), nullable=False)
+    ticker_symbol = db.Column(db.String(20), unique=True, nullable=False)
+    asset_type = db.Column(db.String(50), nullable=False) # e.g., 'Stock', 'Mutual Fund', 'ETF'
+    
+    # This relationship links an asset to all its transactions
+    transactions = db.relationship('InvestmentTransaction', backref='asset', lazy=True)
+
+
+class InvestmentTransaction(db.Model):
+    __tablename__ = 'investment_transaction'
+    id = db.Column(db.Integer, primary_key=True)
+    transaction_type = db.Column(db.String(10), nullable=False) # 'buy' or 'sell'
+    quantity = db.Column(db.Numeric(18, 8), nullable=False) # Allows for fractional shares
+    price_per_unit = db.Column(db.Numeric(18, 4), nullable=False)
+    transaction_date = db.Column(db.DateTime, nullable=False, default=datetime.now(timezone.utc))
+    
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
