@@ -8,15 +8,42 @@
         <div>
             <hgroup>
                 <h2>My Investment Portfolio</h2>
-                <p>A log of your buy and sell investment transactions.</p>
+                <p>A summary of your current holdings and transaction history.</p>
             </hgroup>
         </div>
         <div style="text-align: right;">
-            <!-- This link is now enabled -->
             <a href="{{ url_for('main.add_investment') }}" role="button" class="contrast">Add Transaction</a>
         </div>
     </header>
 
+    <!-- NEW "CURRENT HOLDINGS" SUMMARY TABLE -->
+    <h4>Current Holdings</h4>
+    {% if portfolio_summary %}
+    <table>
+        <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Asset Name</th>
+                <th style="text-align: right;">Quantity Owned</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for holding in portfolio_summary %}
+            <tr>
+                <td><strong>{{ holding.ticker }}</strong></td>
+                <td>{{ holding.name }}</td>
+                <td style="text-align: right;">{{ holding.quantity | round(8) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>You do not currently hold any assets.</p>
+    {% endif %}
+    
+    <hr>
+
+    <!-- EXISTING TRANSACTION HISTORY TABLE -->
     <h4>Transaction History</h4>
     {% if transactions %}
     <div style="overflow-x: auto;">
@@ -48,7 +75,7 @@
         </table>
     </div>
     {% else %}
-    <p>You haven't recorded any investment transactions yet. Click the button above to add your first one!</p>
+    <p>You haven't recorded any investment transactions yet.</p>
     {% endif %}
 </article>
 {% endblock %}

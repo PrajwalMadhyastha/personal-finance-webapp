@@ -571,15 +571,51 @@ def tag_detail(tag_name):
 @main_bp.route('/portfolio')
 @login_required
 def portfolio():
-    """Renders the main investment portfolio page."""
-    # Fetch all investment transactions for the current user
-    investments_stmt = select(InvestmentTransaction).filter_by(
+    """
+    Renders the main investment portfolio page, showing a summary of
+    current holdings and a history of all transactions.
+    """
+    # 1. Fetch all investment transactions for the current user
+    investments_stmt = select(InvestmentTransaction).options(
+        selectinload(InvestmentTransaction.asset) # Eagerly load the related asset data
+    ).filter_by(
         user_id=current_user.id
     ).order_by(InvestmentTransaction.transaction_date.desc())
     
-    investment_transactions = db.session.execute(investments_stmt).scalars().all()
+    all_transactions = db.session.execute(investments_stmt).scalars().all()
+
+    # 2. Process transactions to calculate current holdings
+    # We'll use a dictionary to hold the summary for each asset
+    holdings = defaultdict(lambda: {'quantity': 0, 'asset': None})
+
+    for trans in all_transactions:
+        asset_id = trans.asset_id
+        holdings[asset_id]['asset'] = trans.asset # Store the asset object
+        
+        if trans.transaction_type == 'buy':
+            holdings[asset_id]['quantity'] += trans.quantity
+        elif trans.transaction_type == 'sell':
+            holdings[asset_id]['quantity'] -= trans.quantity
+
+    # 3. Convert the holdings dictionary into a list for the template,
+    #    filtering out any assets where the final quantity is zero or less.
+    portfolio_summary = [
+        {
+            'ticker': data['asset'].ticker_symbol,
+            'name': data['asset'].name,
+            'quantity': data['quantity']
+        }
+        for asset_id, data in holdings.items() if data['quantity'] > 0
+    ]
     
-    return render_template('portfolio.html', transactions=investment_transactions)
+    # Sort the summary alphabetically by ticker
+    portfolio_summary.sort(key=lambda x: x['ticker'])
+    
+    return render_template(
+        'portfolio.html', 
+        transactions=all_transactions,       # For the history table
+        portfolio_summary=portfolio_summary  # For the new summary table
+    )
 
 
 # ===================================================================
