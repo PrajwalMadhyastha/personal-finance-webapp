@@ -22,19 +22,17 @@
     <article>
         <hgroup>
             <h4>This Month's Budget Progress</h4>
-            <p>Your spending versus your monthly limits.</p>
+            <p>Your spending progress for every category you've budgeted for this month.</p>
         </hgroup>
         {% if budget_progress %}
             {% for budget in budget_progress %}
                 <div>
-                    <label for="budget-{{ loop.index }}">{{ budget.category_name }}</label>
-                    
+                    <label>{{ budget.category_name }}</label>
                     <div class="progress-bar-track">
-                        <div class="progress-bar-fill {{ budget.status }}" 
-                            style="width: {{ [budget.percentage_used, 100] | min }}%;">
+                        <div class="progress-bar-fill" 
+                             style="width: {{ [budget.percentage_used, 100] | min }}%; background-color: {{ budget.color }};">
                         </div>
                     </div>
-                    
                     <small>
                         ₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} 
                         ({{ "%.0f"|format(budget.percentage_used) }}%)
@@ -92,31 +90,48 @@
         <article>
             <h4>Recent Transactions</h4>
             {% if transactions %}
-            <table>
-                <tbody>
-                {% for transaction in transactions %}
-                    <tr>
-                        <td>
-                            {{ transaction.description }}<br>
-                            {% for tag in transaction.tags %}
-                                <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge" style="font-size: 0.8em; opacity: 0.8;">{{ tag.name }}</a>
-                            {% endfor %}
-                        </td>
-                        <td class="{{ transaction.transaction_type }}">
-                            {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
-                            ₹{{ "%.2f"|format(transaction.amount) }}
-                        </td>
-                        <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Tags</th>
+                            <th style="text-align: right;">Amount</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for transaction in transactions %}
+                        <tr>
+                            <td>{{ transaction.description }}</td>
+                            <td>
+                                {% if transaction.categories %}{{ transaction.categories[0].name }}{% endif %}
+                            </td>
+                            <td>
+                                {% for tag in transaction.tags %}
+                                    <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge">{{ tag.name }}</a>
+                                {% endfor %}
+                            </td>
+                            <td class="{{ transaction.transaction_type }}" style="text-align: right;">
+                                {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                                ₹{{ "%.2f"|format(transaction.amount) }}
+                            </td>
+                            <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
             {% else %}
                 <p>No transactions recorded yet.</p>
             {% endif %}
         </article>
     </div>
 
+{% endblock %}
+
+{% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     let dailyTrendChart, categoryChart;

@@ -42,13 +42,16 @@
                 {% endif %}
             </div>
             <div>
-                <label for="category_id">Category (Optional)</label>
+                <label for="category_id">Category</label>
                 <select id="category_id" name="category_id">
-                    <option value="">None</option>
+                    <option value="">Select a category</option>
                     {% for category in categories %}
                         <option value="{{ category.id }}" {% if form_data.get('category_id')|int == category.id %}selected{% endif %}>{{ category.name }}</option>
                     {% endfor %}
                 </select>
+                {% if errors.get('category') %}
+                    <small class="error-text">{{ errors.get('category') }}</small>
+                {% endif %}
             </div>
         </div>
         

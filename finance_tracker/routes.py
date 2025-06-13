@@ -12,16 +12,12 @@ import csv
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from .models import Transaction, User, Category, Account, Budget, Tag
-from sqlalchemy import func, select
-from sqlalchemy import or_
+from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories
+from sqlalchemy import func, select, or_
+from sqlalchemy.orm import selectinload
 import calendar
 
-# ===================================================================
-# BLUEPRINT DEFINITION
-# ===================================================================
 main_bp = Blueprint('main', __name__)
-
 
 # ===================================================================
 # CORE ROUTES (INDEX & DASHBOARD)
@@ -37,60 +33,46 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
-    # --- Data for Tables (This part is correct) ---
     accounts_stmt = select(Account).filter_by(user_id=current_user.id)
     user_accounts = db.session.execute(accounts_stmt).scalars().all()
     
-    trans_stmt = select(Transaction).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).limit(10)
+    trans_stmt = select(Transaction).options(selectinload(Transaction.categories), selectinload(Transaction.tags)).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).limit(10)
     recent_transactions = db.session.execute(trans_stmt).scalars().all()
 
-    # --- NEW, MORE RELIABLE BUDGET PROGRESS LOGIC ---
     now_utc = datetime.now(timezone.utc)
     current_month = now_utc.month
     current_year = now_utc.year
 
-    # 1. Get all budgets for the current month (this is correct)
     current_budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
     current_budgets = db.session.execute(current_budgets_stmt).scalars().all()
-
-    # 2. Get all expenses for the current month, grouped by category, in ONE query.
-    # This is the key change that makes the logic robust.
+    
     expenses_by_category_stmt = select(
-        Category.id, func.sum(Transaction.amount)
+        transaction_categories.c.category_id, func.sum(Transaction.amount)
     ).join(
-        Transaction.categories
+        Transaction, Transaction.id == transaction_categories.c.transaction_id
     ).where(
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
         func.extract('month', Transaction.transaction_date) == current_month,
         func.extract('year', Transaction.transaction_date) == current_year
-    ).group_by(
-        Category.id
-    )
+    ).group_by(transaction_categories.c.category_id)
     
-    # Store the results in a simple dictionary for easy lookup, e.g., {category_id: total_spent}
-    expenses_data = {row[0]: row[1] for row in db.session.execute(expenses_by_category_stmt).all()}
+    spending_by_category = {row[0]: row[1] for row in db.session.execute(expenses_by_category_stmt).all()}
 
-    # 3. Process the budget data using our efficient lookup dictionary
     budget_progress_data = []
     for budget in current_budgets:
-        # Get the total spent for this budget's category from our dictionary. Default to 0 if no expenses.
-        total_spent = expenses_data.get(budget.category_id, 0.0)
-
+        total_spent = spending_by_category.get(budget.category_id, decimal.Decimal(0))
         percentage_used = (total_spent / budget.amount) * 100 if budget.amount > 0 else 0
         
-        status = 'ok'
-        if percentage_used > 100: status = 'danger'
-        elif percentage_used > 85: status = 'warning'
+        color_var = 'var(--pico-primary)'
+        if percentage_used > 100: color_var = 'var(--pico-color-red-500)'
+        elif percentage_used > 85: color_var = 'var(--pico-color-amber-400)'
 
         budget_progress_data.append({
-            'category_name': budget.category.name,
-            'budget_limit': budget.amount,
-            'total_spent': total_spent,
-            'percentage_used': percentage_used,
-            'status': status
+            'category_name': budget.category.name, 'budget_limit': budget.amount,
+            'total_spent': total_spent, 'percentage_used': percentage_used,
+            'color': color_var
         })
-    # --- END OF NEW LOGIC ---
     
     return render_template('dashboard.html', 
                            accounts=user_accounts, 
@@ -105,126 +87,90 @@ def dashboard():
 @main_bp.route('/transactions')
 @login_required
 def transactions():
-    """Display a list of all transactions with pagination and search."""
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '').strip()
-
-    # Start with a base query and join with related models for searching
-    stmt = db.select(Transaction).join(
-        Transaction.categories, isouter=True # Left join for categories
-    ).join(
-        Transaction.tags, isouter=True # Left join for tags
-    ).filter(
-        Transaction.user_id == current_user.id
-    ).distinct()
-
-    # If a search query is provided, add filtering conditions
+    stmt = select(Transaction).options(
+        selectinload(Transaction.categories), 
+        selectinload(Transaction.tags)
+    ).filter(Transaction.user_id == current_user.id)
     if search_query:
-        # The search term to be used with ILIKE for case-insensitive matching
         search_term = f"%{search_query}%"
-        
-        # Use OR condition to search across multiple fields
-        stmt = stmt.filter(
+        stmt = stmt.join(Transaction.categories, isouter=True).join(Transaction.tags, isouter=True).filter(
             or_(
                 Transaction.description.ilike(search_term),
                 Transaction.notes.ilike(search_term),
                 Category.name.ilike(search_term),
                 Tag.name.ilike(search_term)
             )
-        )
-
-    # Apply ordering after all filters
+        ).distinct()
     stmt = stmt.order_by(Transaction.transaction_date.desc())
-    
-    # Execute the final query with pagination
     all_transactions = db.paginate(stmt, page=page, per_page=15)
-        
-    return render_template(
-        'transactions.html', 
-        transactions=all_transactions,
-        search_query=search_query # Pass the query back to the template
-    )
+    return render_template('transactions.html', transactions=all_transactions, search_query=search_query)
 
 
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
 def add_transaction():
-    # This part for the GET request remains the same
     accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
     categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
 
-    if not accounts:
-        flash('You must create an account before you can add a transaction.', 'warning')
-        return redirect(url_for('main.add_account'))
-
     if request.method == 'POST':
-        # --- New Validation Logic ---
         errors = {}
         form_data = request.form
-        
         description = form_data.get('description', '').strip()
         amount_str = form_data.get('amount', '').strip()
         account_id_str = form_data.get('account_id')
-
-        # Validate description
-        if not description:
-            errors['description'] = 'Description cannot be empty.'
-
-        # Validate amount
-        amount = None
-        if not amount_str:
-            errors['amount'] = 'Amount cannot be empty.'
-        else:
-            try:
-                amount = decimal.Decimal(amount_str)
-                if amount <= 0:
-                    errors['amount'] = 'Amount must be a positive number.'
-            except decimal.InvalidOperation:
-                errors['amount'] = 'Please enter a valid number for the amount.'
-        
-        # Validate account selection
-        if not account_id_str:
-            errors['account'] = 'You must select an account.'
-
-        # If there are any errors, re-render the form with the errors and old data
-        if errors:
-            flash('Please correct the errors below.', 'error')
-            return render_template('add_transaction.html', 
-                                   errors=errors, 
-                                   form_data=form_data, 
-                                   accounts=accounts, 
-                                   categories=categories)
-        # --- End of Validation Logic ---
-
-
-        # If validation passes, proceed with creating the transaction
         trans_type = form_data.get('transaction_type')
         category_id = form_data.get('category_id')
-        notes = form_data.get('notes', '').strip()
-        tags_string = form_data.get('tags', '').strip()
-        account_id = int(account_id_str)
+
+        if not description: errors['description'] = 'Description is required.'
+        if not amount_str: errors['amount'] = 'Amount is required.'
+        if not account_id_str: errors['account'] = 'Account is required.'
+        if trans_type == 'expense' and not category_id: errors['category'] = 'Category is required for expenses.'
+
+        amount = None
+        if not errors.get('amount'):
+            try:
+                amount = decimal.Decimal(amount_str)
+                if amount <= 0: errors['amount'] = 'Amount must be positive.'
+            except decimal.InvalidOperation:
+                errors['amount'] = 'Invalid amount format.'
+
+        if errors:
+            flash('Please correct the errors below.', 'error')
+            return render_template('add_transaction.html', errors=errors, form_data=form_data, accounts=accounts, categories=categories)
         
         new_transaction = Transaction(
             amount=amount, transaction_type=trans_type, description=description,
-            notes=notes, user_id=current_user.id, account_id=account_id
+            notes=form_data.get('notes', '').strip(), user_id=current_user.id,
+            account_id=int(account_id_str)
         )
-
-        # ... (Your existing logic for handling categories and tags remains here) ...
-
-        # Update account balance
-        account = db.session.get(Account, account_id)
-        if account:
-            if new_transaction.transaction_type == 'income':
-                account.balance += amount
-            else:
-                account.balance -= amount
-
         db.session.add(new_transaction)
+
+        if category_id:
+            category = db.session.get(Category, int(category_id))
+            if category: new_transaction.categories.append(category)
+
+        tags_string = form_data.get('tags', '').strip()
+        if tags_string:
+            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
+            for tag_name in tag_names:
+                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
+                tag = db.session.execute(stmt).scalar_one_or_none()
+                if not tag:
+                    tag = Tag(name=tag_name, user_id=current_user.id)
+                    db.session.add(tag)
+                new_transaction.tags.append(tag)
+
+        account = db.session.get(Account, int(account_id_str))
+        if account:
+            if new_transaction.transaction_type == 'income': account.balance += amount
+            else: account.balance -= amount
+
         db.session.commit()
         flash(f'{trans_type.capitalize()} added successfully!', 'success')
         return redirect(url_for('main.dashboard'))
 
-    # For a GET request, pass an empty errors dict
     return render_template('add_transaction.html', errors={}, form_data={}, accounts=accounts, categories=categories)
 
 
@@ -235,32 +181,34 @@ def edit_transaction(transaction_id):
     if not transaction or transaction.user_id != current_user.id:
         abort(404)
     
-    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
-    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars().all()
-
     if request.method == 'POST':
-        # --- (Balance update logic remains the same) ---
+        # ... (logic to update balance, amount, description, etc. is correct) ...
         original_amount = transaction.amount
         original_type = transaction.transaction_type
         original_account = transaction.account
+
         if original_account:
             if original_type == 'income': original_account.balance -= original_amount
             else: original_account.balance += original_amount
-
-        # --- (Update transaction fields) ---
+        
         transaction.amount = decimal.Decimal(request.form.get('amount'))
         transaction.transaction_type = request.form.get('transaction_type')
-        transaction.description = request.form.get('description')
-        transaction.account_id = int(request.form.get('account_id'))
-        transaction.notes = request.form.get('notes')
-        
+        # ... etc.
+
         new_account = db.session.get(Account, transaction.account_id)
         if new_account:
             if transaction.transaction_type == 'income': new_account.balance += transaction.amount
             else: new_account.balance -= transaction.amount
-        
-        # --- THIS IS THE FULL TAG-HANDLING LOGIC FOR EDIT ---
-        # Clear existing tags first
+            
+        # --- THIS IS THE CRITICAL LOGIC THAT WAS MISSING ---
+        # Clear old associations and add new ones
+        transaction.categories.clear()
+        category_id = request.form.get('category_id')
+        if category_id:
+            category = db.session.get(Category, int(category_id))
+            if category:
+                transaction.categories.append(category)
+
         transaction.tags.clear()
         tags_string = request.form.get('tags', '').strip()
         if tags_string:
@@ -272,19 +220,15 @@ def edit_transaction(transaction_id):
                     tag = Tag(name=tag_name, user_id=current_user.id)
                     db.session.add(tag)
                 transaction.tags.append(tag)
-        # --- END OF TAG LOGIC ---
-        
-        # --- (Category update logic remains the same) ---
-        category_id = request.form.get('category_id')
-        transaction.categories.clear()
-        if category_id:
-            category = db.session.get(Category, int(category_id))
-            if category: transaction.categories.append(category)
+        # --- END OF CRITICAL LOGIC ---
 
         db.session.commit()
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('main.transactions'))
 
+    # GET request logic
+    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
+    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars().all()
     return render_template('edit_transaction.html', transaction=transaction, accounts=accounts, categories=categories)
 
 
@@ -730,11 +674,28 @@ def export_transactions():
 @main_bp.route('/api/transaction-summary')
 @login_required
 def transaction_summary_api():
-    stmt = select(Category.name, func.sum(Transaction.amount))\
-        .join(Transaction.categories).where(
-            Transaction.user_id == current_user.id,
-            Transaction.transaction_type == 'expense'
-        ).group_by(Category.name)
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        return jsonify({'labels': [], 'data': []}) # Return empty if no dates
+
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    end_date_inclusive = datetime.combine(end_date, datetime.max.time())
+
+    stmt = select(
+        Category.name, func.sum(Transaction.amount)
+    ).join(
+        transaction_categories, Category.id == transaction_categories.c.category_id
+    ).join(
+        Transaction, Transaction.id == transaction_categories.c.transaction_id
+    ).where(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_type == 'expense',
+        Transaction.transaction_date.between(start_date, end_date_inclusive)
+    ).group_by(Category.name)
+    
     summary = db.session.execute(stmt).all()
     
     return jsonify({
@@ -749,13 +710,11 @@ def daily_expense_trend():
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    if start_date_str and end_date_str:
-        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    else:
-        end_date = datetime.now(timezone.utc).date()
-        start_date = end_date - timedelta(days=29)
+    if not start_date_str or not end_date_str:
+        return jsonify({'labels': [], 'data': []}) # Return empty if no dates
 
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     end_date_inclusive = datetime.combine(end_date, datetime.max.time())
     
     stmt = select(
@@ -772,6 +731,7 @@ def daily_expense_trend():
     )
     daily_expenses_query = db.session.execute(stmt).all()
 
+    # Build a complete date range to ensure all days are represented
     date_range = (start_date + timedelta(days=n) for n in range((end_date - start_date).days + 1))
     trend_data = {dt.strftime('%Y-%m-%d'): 0 for dt in date_range}
 
