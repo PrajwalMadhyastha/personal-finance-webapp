@@ -12,7 +12,7 @@ import csv
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories
+from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories, RecurringTransaction
 from sqlalchemy import func, select, or_
 from sqlalchemy.orm import selectinload
 import calendar
@@ -837,4 +837,44 @@ def budget_report():
         month_names=month_names,
         selected_year=selected_year,
         selected_month=selected_month
+    )
+
+@main_bp.route('/recurring', methods=['GET', 'POST'])
+@login_required
+def recurring_transactions():
+    if request.method == 'POST':
+        # --- Logic to create a new recurring transaction ---
+        start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        
+        new_recurring = RecurringTransaction(
+            user_id=current_user.id,
+            description=request.form.get('description'),
+            amount=decimal.Decimal(request.form.get('amount')),
+            transaction_type=request.form.get('transaction_type'),
+            recurrence_interval=request.form.get('recurrence_interval'),
+            start_date=start_date,
+            next_due_date=start_date,  # Initially, the next due date is the start date
+            account_id=int(request.form.get('account_id')),
+            category_id=int(request.form.get('category_id')) if request.form.get('category_id') else None
+        )
+        db.session.add(new_recurring)
+        db.session.commit()
+        flash('Recurring transaction scheduled successfully!', 'success')
+        return redirect(url_for('main.recurring_transactions'))
+
+    # --- Logic for GET request (displaying the page) ---
+    # Fetch data needed for the form dropdowns and the list
+    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
+    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+    
+    # Fetch existing recurring transactions to display in the list
+    recurring_list = db.session.execute(
+        select(RecurringTransaction).filter_by(user_id=current_user.id).order_by(RecurringTransaction.next_due_date)
+    ).scalars().all()
+
+    return render_template(
+        'recurring.html',
+        accounts=accounts,
+        categories=categories,
+        recurring_list=recurring_list
     )

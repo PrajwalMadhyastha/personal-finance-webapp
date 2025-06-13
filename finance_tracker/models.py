@@ -24,6 +24,7 @@ class User(db.Model, UserMixin):
     categories = db.relationship('Category', backref='user', lazy=True, cascade="all, delete-orphan")
     budgets = db.relationship('Budget', backref='user', lazy=True, cascade="all, delete-orphan")
     tags = db.relationship('Tag', backref='user', lazy=True, cascade="all, delete-orphan")
+    recurring_transactions = db.relationship('RecurringTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'account'
@@ -81,3 +82,30 @@ class Tag(db.Model):
     
     # Ensures a user cannot have two tags with the same name (case-insensitive)
     __table_args__ = (db.UniqueConstraint('user_id', 'name', name='_user_tag_name_uc'),)
+
+class RecurringTransaction(db.Model):
+    __tablename__ = 'recurring_transaction'
+    id = db.Column(db.Integer, primary_key=True)
+    description = db.Column(db.String(200), nullable=False)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    transaction_type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
+    
+    # How often the transaction occurs
+    recurrence_interval = db.Column(db.String(50), nullable=False) # e.g., 'daily', 'weekly', 'monthly', 'yearly'
+    
+    # The date the recurrence should begin
+    start_date = db.Column(db.Date, nullable=False)
+    
+    # The date the next transaction should be created
+    next_due_date = db.Column(db.Date, nullable=False)
+    
+    # Foreign Keys to link to other models
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
+    
+    # A recurring transaction is linked to a single category
+    category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True) # Nullable for income
+    
+    # Define relationships to load related objects
+    account = db.relationship('Account', backref='recurring_transactions')
+    category = db.relationship('Category', backref='recurring_transactions')
