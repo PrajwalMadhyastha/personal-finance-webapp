@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Yearly Report for {{ year }}{% endblock %}
+
+{% block content %}
+    <article>
+        <header>
+            <hgroup>
+                <h2>Yearly Financial Summary</h2>
+                <h3>Report for {{ year }}</h3>
+            </hgroup>
+            <p>A month-by-month summary of your total income, expenses, and net balance.</p>
+        </header>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th style="text-align: right;">Total Income</th>
+                    <th style="text-align: right;">Total Expenses</th>
+                    <th style="text-align: right;">Net Balance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for month_num, data in report_data.items() %}
+                <tr>
+                    <td><strong>{{ data.month_name }}</strong></td>
+                    <td style="text-align: right; color: var(--pico-color-green-500);">+ ₹{{ "%.2f"|format(data.income) }}</td>
+                    <td style="text-align: right; color: var(--pico-color-red-500);">- ₹{{ "%.2f"|format(data.expense) }}</td>
+                    <td style="text-align: right;">
+                        <strong class="{% if data.net >= 0 %}income{% else %}expense{% endif %}">
+                            ₹{{ "%.2f"|format(data.net) }}
+                        </strong>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td><strong>Year Total</strong></td>
+                    <td style="text-align: right;"><strong>+ ₹{{ "%.2f"|format(grand_total.income) }}</strong></td>
+                    <td style="text-align: right;"><strong>- ₹{{ "%.2f"|format(grand_total.expense) }}</strong></td>
+                    <td style="text-align: right;">
+                        <strong class="{% if grand_total.net >= 0 %}income{% else %}expense{% endif %}">
+                            ₹{{ "%.2f"|format(grand_total.net) }}
+                        </strong>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <footer>
+            <a href="{{ url_for('main.reports') }}" role="button" class="secondary outline">Back to Main Reports</a>
+        </footer>
+    </article>
+{% endblock %}

@@ -1,29 +1,50 @@
-<!-- finance_tracker/templates/reports.html -->
 {% extends "base.html" %}
 
-{% block title %}Expense Reports{% endblock %}
+{% block title %}Financial Reports{% endblock %}
 
 {% block content %}
-     <div class="grid">
+    <article>
+        <hgroup>
+            <h2>Financial Reports</h2>
+            <p>Select a report to view.</p>
+        </hgroup>
+        
+        <h4>View Yearly Summary</h4>
+        <form id="yearly-report-form">
+            <div class="grid">
+                <div class="two-thirds">
+                    <label for="year-select">Select a Year</label>
+                    <select id="year-select" name="year">
+                        {% set current_year = now.year %}
+                        {% for i in range(5) %}
+                        <option value="{{ current_year - i }}">{{ current_year - i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="one-third">
+                    <label>&nbsp;</label>
+                    <button type="submit">View Yearly Report</button>
+                </div>
+            </div>
+        </form>
+    </article>
+
+    <hr>
+
+    <div class="grid">
         <div>
-            <h2>Expense Reports by Month</h2>
+            <h2>Expense Breakdown by Month</h2>
             <p>A summary of your spending, grouped by category for each month.</p>
         </div>
-        <!-- Add the export button -->
         <div style="text-align: right;">
             <a href="{{ url_for('main.export_transactions') }}" role="button" class="outline">Export All Transactions as CSV</a>
         </div>
     </div>
-    <hr>
 
     {% if monthly_summary %}
-        <!-- Outer loop iterates through months -->
         {% for month, categories in monthly_summary.items() %}
             <details open>
-                <!-- Use strptime and strftime to format the month name beautifully -->
                 <summary><strong>{{ month }}</strong></summary>
-
-                <!-- Inner loop displays categories and totals for that month -->
                 <ul>
                     {% for category_name, total_amount in categories %}
                         <li>
@@ -36,5 +57,24 @@
     {% else %}
         <p>No expense data available to generate reports.</p>
     {% endif %}
+{% endblock %}
 
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const reportForm = document.getElementById('yearly-report-form');
+        
+        reportForm.addEventListener('submit', function(event) {
+            event.preventDefault(); // Stop default form submission
+            
+            const selectedYear = document.getElementById('year-select').value;
+            
+            // This creates the clean URL, e.g., /report/yearly/2025
+            const targetUrl = "{{ url_for('main.yearly_report', year=9999) }}".replace('9999', selectedYear);
+            
+            window.location.href = targetUrl; // Redirect to the new page
+        });
+    });
+</script>
 {% endblock %}

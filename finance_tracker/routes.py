@@ -11,10 +11,11 @@ import decimal
 import csv
 import io
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from .models import Transaction, User, Category, Account, Budget, Tag
 from sqlalchemy import func, select
 from sqlalchemy import or_
+import calendar
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -43,8 +44,9 @@ def dashboard():
     trans_stmt = select(Transaction).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).limit(10)
     recent_transactions = db.session.execute(trans_stmt).scalars().all()
 
-    current_month = datetime.utcnow().month
-    current_year = datetime.utcnow().year
+    now_utc = datetime.now(timezone.utc)
+    current_month = now_utc.month
+    current_year = now_utc.year
 
     budget_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
     current_budgets = db.session.execute(budget_stmt).scalars().all()
@@ -392,7 +394,7 @@ def budgets():
     user_budgets = db.session.execute(select(Budget).filter_by(user_id=current_user.id).order_by(Budget.year.desc(), Budget.month.desc())).scalars().all()
     user_categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
     
-    current_year = datetime.utcnow().year
+    current_year = datetime.now(timezone.utc).year
     years_for_dropdown = range(current_year - 1, current_year + 5)
     month_names = {i: datetime(current_year, i, 1).strftime('%B') for i in range(1, 13)}
 
@@ -619,8 +621,65 @@ def reports():
         sorted_categories = sorted(monthly_summary_raw[month_key].items(), key=lambda item: item[1], reverse=True)
         monthly_summary_final[month_name] = sorted_categories
 
-    return render_template('reports.html', monthly_summary=monthly_summary_final)
+    return render_template(
+        'reports.html', 
+        monthly_summary=monthly_summary_final,
+        now=datetime.now(timezone.utc)  # FIXED: Use timezone-aware datetime
+    )
 
+@main_bp.route('/report/yearly/<int:year>')
+@login_required
+def yearly_report(year):
+    """
+    Generates and displays a year-at-a-glance report showing total income,
+    expenses, and net balance for each month.
+    """
+    # 1. The SQLAlchemy query to get monthly totals grouped by transaction type
+    stmt = select(
+        func.extract('month', Transaction.transaction_date).label('month'),
+        Transaction.transaction_type,
+        func.sum(Transaction.amount).label('total_amount')
+    ).where(
+        Transaction.user_id == current_user.id,
+        func.extract('year', Transaction.transaction_date) == year
+    ).group_by(
+        func.extract('month', Transaction.transaction_date),
+        Transaction.transaction_type
+    )
+    
+    query_results = db.session.execute(stmt).all()
+
+    # 2. Process the query results into a structured dictionary
+    # Initialize data for all 12 months to ensure every month is displayed
+    report_data = {
+        month_num: {
+            'month_name': calendar.month_name[month_num],
+            'income': decimal.Decimal(0),
+            'expense': decimal.Decimal(0),
+            'net': decimal.Decimal(0)
+        } for month_num in range(1, 13)
+    }
+
+    for month_num, trans_type, total_amount in query_results:
+        if trans_type == 'income':
+            report_data[month_num]['income'] = total_amount
+        else: # 'expense'
+            report_data[month_num]['expense'] = total_amount
+
+    # 3. Calculate the net balance for each month and grand totals
+    grand_total = {'income': 0, 'expense': 0, 'net': 0}
+    for month_data in report_data.values():
+        month_data['net'] = month_data['income'] - month_data['expense']
+        grand_total['income'] += month_data['income']
+        grand_total['expense'] += month_data['expense']
+    grand_total['net'] = grand_total['income'] - grand_total['expense']
+
+    return render_template(
+        'yearly_report.html', 
+        report_data=report_data, 
+        year=year,
+        grand_total=grand_total
+    )
 
 @main_bp.route('/export-transactions')
 @login_required
@@ -671,7 +730,7 @@ def daily_expense_trend():
         start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
     else:
-        end_date = datetime.utcnow().date()
+        end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=29)
 
     end_date_inclusive = datetime.combine(end_date, datetime.max.time())
