@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block title %}Budget vs. Actual Report{% endblock %}
+
+{% block content %}
+<article>
+    <hgroup>
+        <h2>Budget vs. Actual Spending Report</h2>
+        <p>Compare your budgeted amounts to your actual spending for a selected period.</p>
+    </hgroup>
+
+    <!-- Month/Year Selection Form -->
+    <form method="GET" action="{{ url_for('main.budget_report') }}">
+        <div class="grid">
+            <div>
+                <label for="month">Month</label>
+                <select id="month" name="month">
+                    {% for num, name in month_names.items() %}
+                    <option value="{{ num }}" {% if num == selected_month %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="year">Year</label>
+                <select id="year" name="year">
+                    {% for year in years %}
+                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <button type="submit">Generate Report</button>
+    </form>
+</article>
+
+<article>
+    <header>
+        <h4>Report for {{ month_names[selected_month] }} {{ selected_year }}</h4>
+    </header>
+    {% if report_data %}
+    <table>
+        <thead>
+            <tr>
+                <th>Category</th>
+                <th style="text-align: right;">Budgeted</th>
+                <th style="text-align: right;">Actual Spent</th>
+                <th style="text-align: right;">Difference</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in report_data %}
+            <tr>
+                <td><strong>{{ item.category_name }}</strong></td>
+                <td style="text-align: right;">₹{{ "%.2f"|format(item.budgeted_amount) }}</td>
+                <td style="text-align: right;">₹{{ "%.2f"|format(item.actual_spent) }}</td>
+                <td style="text-align: right;">
+                    <!-- Conditionally color the difference -->
+                    <strong class="{% if item.difference >= 0 %}income{% else %}expense{% endif %}">
+                        {% if item.difference >= 0 %}+{% endif %}{{ "%.2f"|format(item.difference) }}
+                    </strong>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No budgets were set for the selected period. <a href="{{ url_for('main.budgets') }}">Set a budget</a> for {{ month_names[selected_month] }} {{ selected_year }} to see a report.</p>
+    {% endif %}
+</article>
+
+{% endblock %}

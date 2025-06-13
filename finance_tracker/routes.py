@@ -779,3 +779,62 @@ def check_email():
         return jsonify({'available': False})
     else:
         return jsonify({'available': True})
+
+@main_bp.route('/report/budgets')
+@login_required
+def budget_report():
+    now_utc = datetime.now(timezone.utc)
+    # Default to current month/year if not provided in the URL
+    selected_year = request.args.get('year', default=now_utc.year, type=int)
+    selected_month = request.args.get('month', default=now_utc.month, type=int)
+
+    # --- Data Fetching and Processing ---
+
+    # 1. Get all budgets for the selected period
+    budgets_stmt = select(Budget).filter_by(
+        user_id=current_user.id,
+        month=selected_month,
+        year=selected_year
+    )
+    budgets_for_period = db.session.execute(budgets_stmt).scalars().all()
+
+    # 2. Get all expenses for the selected period, grouped by category
+    expenses_stmt = select(
+        transaction_categories.c.category_id,
+        func.sum(Transaction.amount)
+    ).join(
+        Transaction, Transaction.id == transaction_categories.c.transaction_id
+    ).where(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_type == 'expense',
+        func.extract('month', Transaction.transaction_date) == selected_month,
+        func.extract('year', Transaction.transaction_date) == selected_year
+    ).group_by(transaction_categories.c.category_id)
+    
+    spending_by_category = {row[0]: row[1] for row in db.session.execute(expenses_stmt).all()}
+
+    # 3. Process the data into a final list for the template
+    report_data = []
+    for budget in budgets_for_period:
+        actual_spent = spending_by_category.get(budget.category_id, decimal.Decimal(0))
+        difference = budget.amount - actual_spent
+        
+        report_data.append({
+            'category_name': budget.category.name,
+            'budgeted_amount': budget.amount,
+            'actual_spent': actual_spent,
+            'difference': difference
+        })
+
+    # Data for the dropdown selectors
+    years = range(now_utc.year + 1, now_utc.year - 5, -1)
+    month_names = {i: name for i, name in enumerate(calendar.month_name) if i > 0}
+
+    return render_template(
+        'budget_report.html',
+        report_data=report_data,
+        years=years,
+        month_names=month_names,
+        selected_year=selected_year,
+        selected_month=selected_month
+    )

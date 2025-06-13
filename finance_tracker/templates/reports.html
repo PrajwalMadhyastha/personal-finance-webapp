@@ -3,6 +3,14 @@
 {% block title %}Financial Reports{% endblock %}
 
 {% block content %}
+
+    <article>
+        <h4>Budget vs. Actual Spending</h4>
+        <p>Drill down into a specific month to see how your spending compares to the budgets you set for each category.</p>
+        <footer>
+            <a href="{{ url_for('main.budget_report') }}" role="button">View Budget Report</a>
+        </footer>
+    </article>
     <article>
         <hgroup>
             <h2>Financial Reports</h2>
