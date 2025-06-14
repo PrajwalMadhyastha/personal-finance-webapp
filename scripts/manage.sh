@@ -17,6 +17,7 @@ usage() {
     echo -e "  ${CYAN}start-db${NC}        : Starts only the database container in the background. (Run once)."
     echo -e "  ${CYAN}start-app${NC}       : Builds and starts the web application in the background."
     echo -e "  ${CYAN}stop-app${NC}        : Stops only the web application container."
+    echo -e "  ${CYAN}restart-app${NC}     : Restarts the web application container."
     echo -e "  ${CYAN}down${NC}            : Stops and removes all containers and networks."
     echo -e "  ${CYAN}logs [service]${NC}  : Tails the logs. Service can be 'app' or 'db'. Default is 'app'."
     echo -e "  ${CYAN}shell${NC}           : Opens a bash shell inside the running webapp container."
@@ -47,12 +48,11 @@ case "$1" in
     start-db)
         echo -e "${GREEN}--- Starting database container in the background... ---${NC}"
         $COMPOSER up -d db
-        echo "Database service started. It may take up to 5 minutes to become healthy."
+        echo "Database service started. It may take several minutes to become healthy."
         echo "Check status with: docker ps"
         ;;
     start-app)
         echo -e "${GREEN}--- Building and starting webapp container... ---${NC}"
-        # The '-d' flag ensures it runs in the background (detached)
         $COMPOSER up -d --build webapp
         echo -e "${GREEN}✅ Web application is running in the background.${NC}"
         echo -e "   -> Use './scripts/manage.sh logs' to see the output."
@@ -60,6 +60,12 @@ case "$1" in
     stop-app)
         echo -e "${YELLOW}--- Stopping webapp container... ---${NC}"
         $COMPOSER stop webapp
+        ;;
+    restart-app) # <-- NEW COMMAND
+        echo -e "${YELLOW}--- Restarting webapp container (stopping, rebuilding, and starting)... ---${NC}"
+        $COMPOSER stop webapp
+        $COMPOSER up -d --build webapp
+        echo -e "${GREEN}✅ Web application has been restarted in the background.${NC}"
         ;;
     down)
         echo -e "${RED}--- Stopping and removing all containers, networks, and volumes... ---${NC}"
@@ -83,7 +89,6 @@ case "$1" in
         ;;
     db)
         echo -e "${CYAN}--- Running database command: flask db ${2:-} ---${NC}"
-        # This uses 'run --rm' to create a temporary container for the command.
         $COMPOSER run --rm --env-file .env webapp flask db "${@:2}"
         ;;
     *)
