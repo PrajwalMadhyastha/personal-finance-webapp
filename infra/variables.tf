@@ -47,3 +47,9 @@ variable "flask_secret_key" {
   type        = string
   sensitive   = true # Marks this as a sensitive value
 }
+
+variable "task_secret_key" {
+  description = "The secret key to authorize the recurring transaction job."
+  type        = string
+  sensitive   = true
+}

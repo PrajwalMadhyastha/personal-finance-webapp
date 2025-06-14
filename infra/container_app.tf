@@ -19,6 +19,10 @@ resource "azurerm_container_app" "webapp" {
     name  = "ghcr-pat"
     value = var.github_pat
   }
+  secret {
+    name  = "recurring-job-secret"
+    value = var.task_secret_key
+  }
 
   ingress {
     external_enabled = true
@@ -66,6 +70,10 @@ resource "azurerm_container_app" "webapp" {
         # You may also want a secret for this in the future
         name  = "SECRET_KEY"
         value = var.flask_secret_key
+      }
+      env {
+        name        = "TASK_SECRET_KEY"
+        secret_name = "recurring-job-secret"
       }
     }
   }

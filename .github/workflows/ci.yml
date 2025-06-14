@@ -88,6 +88,7 @@ jobs:
           TF_VAR_github_pat: ${{ secrets.GHCR_PAT }}
           TF_VAR_github_username: ${{ needs.build-and-push.outputs.owner_lc }}
           TF_VAR_flask_secret_key: ${{ secrets.FLASK_SECRET_KEY }}
+          TF_VAR_task_secret_key: ${{ secrets.RECURRING_JOB_SECRET }}
         run: |
           echo "Infrastructure changes detected. Running terraform apply..."
           cd infra
