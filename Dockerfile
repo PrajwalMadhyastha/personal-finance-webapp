@@ -5,25 +5,19 @@ FROM python:3.11-slim-bullseye
 WORKDIR /app
 
 # --- Install System Dependencies & Microsoft ODBC Driver ---
-
-# Step 1: Install prerequisites
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    gnupg \
-    apt-transport-https \
-    ca-certificates \
-    lsb-release \
+    curl gnupg apt-transport-https ca-certificates lsb-release \
+    # Add the Microsoft GPG key
+    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    # Add the Microsoft repository
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" > /etc/apt/sources.list.d/mssql-release.list \
+    # Update package lists again to include the new repo
+    && apt-get update \
+    # Install the driver and tools, accepting the EULA
+    && ACCEPT_EULA=Y apt-get install -y unixodbc-dev msodbcsql18 mssql-tools18 \
+    # Clean up the apt cache to keep the image size small
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
-
-# Step 2: Add the Microsoft GPG key
-RUN curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg
-
-# Step 3: Add the Microsoft repository, explicitly linking it to the GPG key
-RUN echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/11/prod bullseye main" > /etc/apt/sources.list.d/mssql-release.list
-
-# Step 4: Update apt sources and install the LATEST driver and tools
-RUN apt-get update && \
-    ACCEPT_EULA=Y apt-get install -y unixodbc-dev msodbcsql18 mssql-tools18
 
 # --- THIS IS THE CRITICAL FIX ---
 # Step 5: Add the SQL Server tools to the system's PATH environment variable
