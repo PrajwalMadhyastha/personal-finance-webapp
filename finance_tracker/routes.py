@@ -321,7 +321,6 @@ def edit_transaction(transaction_id):
 
     return render_template('edit_transaction.html', transaction=transaction, accounts=accounts, categories=categories)
 
-# THIS FUNCTION WAS MISSING
 @main_bp.route('/delete_transaction/<int:transaction_id>', methods=['POST'])
 @login_required
 def delete_transaction(transaction_id):
@@ -340,6 +339,90 @@ def delete_transaction(transaction_id):
     db.session.commit()
     flash('Transaction deleted successfully!', 'success')
     return redirect(url_for('main.transactions'))
+
+@main_bp.route('/transfer', methods=['GET', 'POST'])
+@login_required
+def transfer():
+    """Handles transfers of funds between a user's own accounts."""
+    
+    # Fetch user's accounts to populate the form dropdowns
+    accounts = db.session.execute(
+        select(Account).filter_by(user_id=current_user.id)
+    ).scalars().all()
+
+    # Only show the form if the user has at least two accounts
+    if len(accounts) < 2:
+        flash('You need at least two accounts to make a transfer.', 'warning')
+        return redirect(url_for('main.dashboard'))
+
+    if request.method == 'POST':
+        from_account_id = request.form.get('from_account_id')
+        to_account_id = request.form.get('to_account_id')
+        amount_str = request.form.get('amount')
+
+        # --- Validation ---
+        if not all([from_account_id, to_account_id, amount_str]):
+            flash('All fields are required.', 'error')
+            return redirect(url_for('main.transfer'))
+        
+        if from_account_id == to_account_id:
+            flash('"From" and "To" accounts cannot be the same.', 'error')
+            return redirect(url_for('main.transfer'))
+
+        try:
+            amount = decimal.Decimal(amount_str)
+            if amount <= 0:
+                flash('Transfer amount must be positive.', 'error')
+                return redirect(url_for('main.transfer'))
+
+            # --- Atomic Transaction Logic ---
+            from_account = db.session.get(Account, int(from_account_id))
+            to_account = db.session.get(Account, int(to_account_id))
+
+            # Security check
+            if not from_account or from_account.user_id != current_user.id or \
+               not to_account or to_account.user_id != current_user.id:
+                abort(403)
+
+            # 1. Create the two new transaction records
+            now = datetime.now(timezone.utc)
+            
+            expense_trans = Transaction(
+                description=f"Transfer to {to_account.name}", amount=amount,
+                transaction_type='expense', transaction_date=now,
+                user_id=current_user.id, account_id=from_account.id
+            )
+            
+            income_trans = Transaction(
+                description=f"Transfer from {from_account.name}", amount=amount,
+                transaction_type='income', transaction_date=now,
+                user_id=current_user.id, account_id=to_account.id
+            )
+
+            # 2. Update the account balances
+            from_account.balance -= amount
+            to_account.balance += amount
+            
+            # 3. Add all objects to the session
+            db.session.add_all([expense_trans, income_trans])
+            
+            # 4. Log the activity
+            log_activity(f"Transferred ₹{amount:.2f} from '{from_account.name}' to '{to_account.name}'.")
+
+            # 5. Commit the entire transaction
+            db.session.commit()
+            
+            flash('Transfer completed successfully!', 'success')
+            return redirect(url_for('main.dashboard'))
+
+        except Exception as e:
+            # If any step fails, roll everything back
+            db.session.rollback()
+            current_app.logger.error(f"Transfer failed: {e}")
+            flash('An unexpected error occurred. The transfer was not completed.', 'danger')
+            return redirect(url_for('main.transfer'))
+
+    return render_template('transfer_form.html', accounts=accounts)
 
 
 # ===================================================================
