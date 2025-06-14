@@ -41,7 +41,11 @@ def create_app(test_config=None):
         
         # --- THIS IS THE CORRECTED LINE ---
         # The Timeout parameter must be part of the query string arguments after the '?'.
-        db_uri = f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?driver={urllib.parse.quote_plus(driver_name)}&Timeout=60"
+        db_uri = (
+            f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?"
+            f"driver={urllib.parse.quote_plus(driver_name)}"
+            f"&TrustServerCertificate=yes"  # <-- THIS IS THE FIX
+        )
         
         app.config.from_mapping(
             SECRET_KEY=secret_key,

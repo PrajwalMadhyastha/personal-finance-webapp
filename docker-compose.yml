@@ -1,6 +1,29 @@
-# docker-compose.yml
-
 services:
+  # This is the new service for your local SQL Server database
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql_db
+    restart: always
+    environment:
+      - ACCEPT_EULA=Y
+      # This pulls the System Administrator password from your .env file
+      - SA_PASSWORD=${DB_SA_PASSWORD}
+    ports:
+      # Exposes the DB port to your local machine (e.g., for database tools)
+      - "1433:1433"
+    volumes:
+      # This named volume will persist your database data
+      - db_data:/var/opt/mssql
+    healthcheck:
+      # This is now much simpler and more reliable.
+      # It directly executes our script without a shell.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$DB_SA_PASSWORD\" -C -N -Q \"SELECT 1\" || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 300s 
+
+  # This is your existing webapp service, now updated
   webapp:
     container_name: personal-finance-app
     build:
@@ -9,9 +32,15 @@ services:
       - "5000:5000"
     env_file:
       - .env
+    # --- Using your original volume mapping for hot-reloading ---
     volumes:
-      # This is your existing volume for hot-reloading code
       - ./finance_tracker:/app/finance_tracker
-      # --- THIS LINE IS CRITICAL ---
-      # This syncs the migrations folder between your Mac and the container
       - ./migrations:/app/migrations
+    # --- This new directive ensures the db starts first ---
+    depends_on:
+      db:
+        condition: service_healthy
+
+# This defines the named volume used by the db service
+volumes:
+  db_data:
