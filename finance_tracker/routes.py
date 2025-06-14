@@ -49,25 +49,51 @@ def index():
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
+    # --- Date Range Handling for Charts & Summary Cards ---
+    now_utc = datetime.now(timezone.utc)
+    # Default to the current month if no dates are provided in the URL
+    first_day_of_month = now_utc.replace(day=1).date()
+    start_date_str = request.args.get('start_date', first_day_of_month.strftime('%Y-%m-%d'))
+    end_date_str = request.args.get('end_date', now_utc.date().strftime('%Y-%m-%d'))
+
+    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    end_date_inclusive = datetime.combine(end_date, datetime.max.time())
+
+    # --- Calculate Summary Totals for the Selected Period ---
+    summary_stmt = select(
+        Transaction.transaction_type, func.sum(Transaction.amount)
+    ).where(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_date.between(start_date, end_date_inclusive)
+    ).group_by(Transaction.transaction_type)
+    
+    summary_data = {row[0]: row[1] for row in db.session.execute(summary_stmt).all()}
+    total_income = summary_data.get('income', decimal.Decimal(0))
+    total_expenses = summary_data.get('expense', decimal.Decimal(0))
+    net_balance = total_income - total_expenses
+    
+    # --- Fetch Data for Tables and Feeds ---
     accounts_stmt = select(Account).filter_by(user_id=current_user.id)
     user_accounts = db.session.execute(accounts_stmt).scalars().all()
     
     trans_stmt = select(Transaction).options(selectinload(Transaction.categories), selectinload(Transaction.tags)).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date.desc()).limit(10)
     recent_transactions = db.session.execute(trans_stmt).scalars().all()
 
-    now_utc = datetime.now(timezone.utc)
-    current_month = now_utc.month
-    current_year = now_utc.year
-
-    budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
-    current_budgets = db.session.execute(budgets_stmt).scalars().all()
-    
     activity_logs_stmt = select(ActivityLog).filter_by(user_id=current_user.id).order_by(ActivityLog.timestamp.desc()).limit(5)
     recent_activity = db.session.execute(activity_logs_stmt).scalars().all()
+
+    # --- Budget Progress Logic (for current calendar month only) ---
+    current_month = now_utc.month
+    current_year = now_utc.year
+    
+    current_budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
+    current_budgets = db.session.execute(current_budgets_stmt).scalars().all()
     
     expenses_by_category_stmt = select(
         transaction_categories.c.category_id, func.sum(Transaction.amount)
-    ).join(Transaction, Transaction.id == transaction_categories.c.transaction_id
+    ).join(
+        Transaction, Transaction.id == transaction_categories.c.transaction_id
     ).where(
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
@@ -92,11 +118,18 @@ def dashboard():
             'color': color_var
         })
     
+    # --- Final Render with ALL Data ---
     return render_template('dashboard.html', 
                            accounts=user_accounts, 
                            transactions=recent_transactions,
                            budget_progress=budget_progress_data,
-                           activity_logs=recent_activity)
+                           activity_logs=recent_activity,
+                           total_income=total_income,
+                           total_expenses=total_expenses,
+                           net_balance=net_balance,
+                           start_date=start_date_str,
+                           end_date=end_date_str
+                        )
 
 # ===================================================================
 # TRANSACTION CRUD
@@ -105,10 +138,42 @@ def dashboard():
 @login_required
 def transactions():
     page = request.args.get('page', 1, type=int)
+    # Get all potential filters from the URL query parameters
     search_query = request.args.get('q', '').strip()
-    stmt = select(Transaction).options(selectinload(Transaction.categories), selectinload(Transaction.tags)).filter_by(user_id=current_user.id)
+    trans_type = request.args.get('type', '').strip()
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    # Start with a base query and eagerly load related data to prevent extra queries
+    stmt = select(Transaction).options(
+        selectinload(Transaction.account),
+        selectinload(Transaction.categories), 
+        selectinload(Transaction.tags)
+    ).filter_by(user_id=current_user.id)
+
+    # --- Apply Filters Dynamically ---
+
+    # Filter by transaction type (income/expense)
+    if trans_type in ['income', 'expense']:
+        stmt = stmt.where(Transaction.transaction_type == trans_type)
+    
+    # Filter by date range
+    if start_date_str and end_date_str:
+        try:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            end_date_inclusive = datetime.combine(end_date, datetime.max.time())
+            stmt = stmt.where(Transaction.transaction_date.between(start_date, end_date_inclusive))
+        except ValueError:
+            flash('Invalid date format provided.', 'error')
+            # Reset dates if format is wrong
+            start_date_str = None
+            end_date_str = None
+
+    # Filter by search query
     if search_query:
         search_term = f"%{search_query}%"
+        # We need to join to related tables to search their fields
         stmt = stmt.join(Transaction.categories, isouter=True).join(Transaction.tags, isouter=True).filter(
             or_(
                 Transaction.description.ilike(search_term),
@@ -116,10 +181,21 @@ def transactions():
                 Category.name.ilike(search_term),
                 Tag.name.ilike(search_term)
             )
-        ).distinct()
+        ).distinct() # Use distinct to avoid duplicate results from joins
+
+    # --- Finalize and Execute Query ---
     stmt = stmt.order_by(Transaction.transaction_date.desc())
     all_transactions = db.paginate(stmt, page=page, per_page=15)
-    return render_template('transactions.html', transactions=all_transactions, search_query=search_query)
+        
+    return render_template(
+        'transactions.html', 
+        transactions=all_transactions,
+        # Pass all filters back to the template to repopulate forms/links
+        search_query=search_query,
+        selected_type=trans_type,
+        start_date=start_date_str,
+        end_date=end_date_str
+    )
 
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required

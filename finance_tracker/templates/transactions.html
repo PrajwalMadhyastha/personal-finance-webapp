@@ -5,14 +5,17 @@
 {% block content %}
     <div class="grid">
         <div>
-            <h2>All Transactions</h2>
+            {% if selected_type %}
+                <h2>{{ selected_type|capitalize }}s {% if start_date %}from {{start_date}} to {{end_date}}{% endif %}</h2>
+            {% else %}
+                <h2>All Transactions</h2>
+            {% endif %}
         </div>
         <div style="text-align: right;">
             <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
         </div>
     </div>
 
-    <!-- SEARCH FORM -->
     <form method="GET" action="{{ url_for('main.transactions') }}">
         <div class="grid">
             <div class="nine-tenths">
@@ -24,7 +27,6 @@
         </div>
     </form>
     
-    <!-- CONDITIONAL HEADER FOR SEARCH RESULTS -->
     {% if search_query %}
     <hgroup>
         <h4>Search Results for '{{ search_query }}'</h4>
@@ -76,26 +78,25 @@
             </tbody>
         </table>
 
-        <!-- Pagination navigation -->
         <nav aria-label="Pagination">
             <ul>
                 <li>
-                    {% if transactions.has_prev %}<a href="{{ url_for('main.transactions', page=transactions.prev_num, q=search_query) }}">‹ Previous</a>{% else %}<span disabled>‹ Previous</span>{% endif %}
+                    {% if transactions.has_prev %}<a href="{{ url_for('main.transactions', page=transactions.prev_num, q=search_query, type=selected_type, start_date=start_date, end_date=end_date) }}">‹ Previous</a>{% else %}<span>‹ Previous</span>{% endif %}
                 </li>
                 <li>Page {{ transactions.page }} of {{ transactions.pages }}.</li>
                 <li>
-                    {% if transactions.has_next %}<a href="{{ url_for('main.transactions', page=transactions.next_num, q=search_query) }}">Next ›</a>{% else %}<span disabled>Next ›</span>{% endif %}
+                    {% if transactions.has_next %}<a href="{{ url_for('main.transactions', page=transactions.next_num, q=search_query, type=selected_type, start_date=start_date, end_date=end_date) }}">Next ›</a>{% else %}<span>Next ›</span>{% endif %}
                 </li>
             </ul>
         </nav>
-
+        
     {% else %}
         <article>
-            <p>
+            <p style="text-align: center;">
                 {% if search_query %}
-                    No transactions found matching your search. <a href="{{ url_for('main.transactions') }}">Clear search</a> to see all transactions.
+                    No transactions found matching your search: '<strong>{{ search_query }}</strong>'. <a href="{{ url_for('main.transactions') }}">Clear search</a>.
                 {% else %}
-                    No transactions recorded yet. <a href="{{ url_for('main.add_transaction') }}">Add your first one!</a>
+                    No transactions have been recorded yet. <a href="{{ url_for('main.add_transaction') }}">Add your first one!</a>
                 {% endif %}
             </p>
         </article>

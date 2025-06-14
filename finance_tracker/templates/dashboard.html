@@ -18,6 +18,36 @@
         </div>
     </div>
     <hr>
+    <article>
+        <hgroup>
+            <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
+            <p>Click a card to see a detailed list of transactions.</p>
+        </hgroup>
+        <div class="grid">
+            <!-- Income Card -->
+            <a href="{{ url_for('main.transactions', type='income', start_date=start_date, end_date=end_date) }}" class="card-link">
+                <article>
+                    <h5 class="pico-color-green-500">Total Income</h5>
+                    <h2>₹{{ "%.2f"|format(total_income) }}</h2>
+                </article>
+            </a>
+            <!-- Expenses Card -->
+            <a href="{{ url_for('main.transactions', type='expense', start_date=start_date, end_date=end_date) }}" class="card-link">
+                <article>
+                    <h5 class="pico-color-red-500">Total Expenses</h5>
+                    <h2>₹{{ "%.2f"|format(total_expenses) }}</h2>
+                </article>
+            </a>
+            <!-- Net Balance Card (Not clickable) -->
+            <article>
+                <h5>Net Balance</h5>
+                <h2 class="{% if net_balance >= 0 %}income{% else %}expense{% endif %}">
+                    ₹{{ "%.2f"|format(net_balance) }}
+                </h2>
+            </article>
+        </div>
+    </article>
+    <style>.card-link { text-decoration: none; }</style>
     
     <article>
         <hgroup>
