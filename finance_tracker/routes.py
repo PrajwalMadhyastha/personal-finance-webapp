@@ -22,6 +22,7 @@ from sqlalchemy import func, select, or_
 from sqlalchemy.orm import selectinload
 import calendar
 from dateutil.relativedelta import relativedelta
+from .forms import TransactionForm
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -203,50 +204,34 @@ def transactions():
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
 def add_transaction():
-    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
-    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+    # --- THIS IS THE FIX ---
+    # First, check if the user has any accounts at all using a direct query.
+    # This must be done before we try to use the form object.
+    if not db.session.execute(select(Account).filter_by(user_id=current_user.id)).first():
+        flash('You must create an account before adding a transaction.', 'warning')
+        return redirect(url_for('main.add_account'))
+    # --- END OF FIX ---
 
-    if request.method == 'POST':
-        errors = {}
-        form_data = request.form
-        description = form_data.get('description', '').strip()
-        amount_str = form_data.get('amount', '').strip()
-        account_id_str = form_data.get('account_id')
-        trans_type = form_data.get('transaction_type')
-        category_id = form_data.get('category_id')
-
-        if not description: errors['description'] = 'Description is required.'
-        if not amount_str: errors['amount'] = 'Amount is required.'
-        if not account_id_str: errors['account'] = 'An account is required.'
-        if trans_type == 'expense' and not category_id: errors['category'] = 'Category is required for expenses.'
-        
-        amount = None
-        if not errors.get('amount'):
-            try:
-                amount = decimal.Decimal(amount_str)
-                if amount <= 0: errors['amount'] = 'Amount must be positive.'
-            except decimal.InvalidOperation:
-                errors['amount'] = 'Please enter a valid number.'
-
-        if errors:
-            flash('Please correct the errors below.', 'error')
-            return render_template('add_transaction.html', errors=errors, form_data=form_data, accounts=accounts, categories=categories)
+    form = TransactionForm()
+    
+    if form.validate_on_submit():
+        # This block now only runs on a successful POST with valid data
         
         new_transaction = Transaction(
-            amount=amount, transaction_type=trans_type, description=description,
-            notes=form_data.get('notes', '').strip(),
-            user_id=current_user.id, account_id=int(account_id_str),
+            description=form.description.data,
+            amount=form.amount.data,
+            transaction_type=form.transaction_type.data,
+            notes=form.notes.data,
+            user_id=current_user.id,
+            account_id=form.account.data.id,
             transaction_date=datetime.now(timezone.utc)
         )
-        db.session.add(new_transaction)
+        
+        if form.category.data:
+            new_transaction.categories.append(form.category.data)
 
-        if category_id:
-            category = db.session.get(Category, int(category_id))
-            if category: new_transaction.categories.append(category)
-
-        tags_string = form_data.get('tags', '').strip()
-        if tags_string:
-            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
+        if form.tags.data:
+            tag_names = [name.strip() for name in form.tags.data.split(',') if name.strip()]
             for tag_name in tag_names:
                 stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
                 tag = db.session.execute(stmt).scalar_one_or_none()
@@ -254,58 +239,68 @@ def add_transaction():
                     tag = Tag(name=tag_name, user_id=current_user.id)
                     db.session.add(tag)
                 new_transaction.tags.append(tag)
+        
+        account = form.account.data
+        if new_transaction.transaction_type == 'income':
+            account.balance += new_transaction.amount
+        else:
+            account.balance -= new_transaction.amount
 
-        account = db.session.get(Account, int(account_id_str))
-        if account:
-            if new_transaction.transaction_type == 'income': account.balance += amount
-            else: account.balance -= amount
-
-        log_activity(f"Added transaction: '{new_transaction.description}' (₹{new_transaction.amount:.2f})")
+        db.session.add(new_transaction)
+        log_activity(f"Added transaction: '{new_transaction.description}'")
         db.session.commit()
-        flash(f'{trans_type.capitalize()} added successfully!', 'success')
+        
+        flash('Transaction added successfully!', 'success')
         return redirect(url_for('main.dashboard'))
 
-    return render_template('add_transaction.html', errors={}, form_data={}, accounts=accounts, categories=categories)
+    # For a GET request or a failed validation, render the form template
+    return render_template('add_edit_transaction.html', form=form, title='Add Transaction')
 
 @main_bp.route('/edit_transaction/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_transaction(transaction_id):
     transaction = db.session.get(Transaction, transaction_id)
-    if not transaction or transaction.user_id != current_user.id: abort(404)
+    if not transaction or transaction.user_id != current_user.id:
+        abort(404)
     
-    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
-    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+    # Pass the existing transaction object to pre-populate the form
+    form = TransactionForm(obj=transaction)
+    
+    # Manually set the dropdown default values for the GET request
+    if request.method == 'GET':
+        form.account.data = transaction.account
+        if transaction.categories:
+            form.category.data = transaction.categories[0]
+        form.tags.data = ', '.join([tag.name for tag in transaction.tags])
 
-    if request.method == 'POST':
-        original_amount = transaction.amount
-        original_type = transaction.transaction_type
-        original_account = transaction.account
-
+    if form.validate_on_submit():
+        # Revert old balance
+        original_account = db.session.get(Account, transaction.account_id)
         if original_account:
-            if original_type == 'income': original_account.balance -= original_amount
-            else: original_account.balance += original_amount
-        
-        transaction.amount = decimal.Decimal(request.form.get('amount'))
-        transaction.transaction_type = request.form.get('transaction_type')
-        transaction.description = request.form.get('description')
-        transaction.notes = request.form.get('notes')
-        transaction.account_id = int(request.form.get('account_id'))
-        
-        new_account = db.session.get(Account, transaction.account_id)
+            if transaction.transaction_type == 'income': original_account.balance -= transaction.amount
+            else: original_account.balance += transaction.amount
+
+        # Populate the transaction object with updated data from the form
+        transaction.description = form.description.data
+        transaction.amount = form.amount.data
+        transaction.transaction_type = form.transaction_type.data
+        transaction.notes = form.notes.data
+        transaction.account_id = form.account.data.id
+
+        # Update new balance
+        new_account = form.account.data
         if new_account:
             if transaction.transaction_type == 'income': new_account.balance += transaction.amount
             else: new_account.balance -= transaction.amount
             
+        # Update relationships
         transaction.categories.clear()
-        category_id = request.form.get('category_id')
-        if category_id:
-            category = db.session.get(Category, int(category_id))
-            if category: transaction.categories.append(category)
+        if form.category.data:
+            transaction.categories.append(form.category.data)
 
         transaction.tags.clear()
-        tags_string = request.form.get('tags', '').strip()
-        if tags_string:
-            tag_names = [name.strip() for name in tags_string.split(',') if name.strip()]
+        if form.tags.data:
+            tag_names = [name.strip() for name in form.tags.data.split(',') if name.strip()]
             for tag_name in tag_names:
                 stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
                 tag = db.session.execute(stmt).scalar_one_or_none()
@@ -314,12 +309,12 @@ def edit_transaction(transaction_id):
                     db.session.add(tag)
                 transaction.tags.append(tag)
         
-        log_activity(f"Updated transaction: '{transaction.description}' (₹{transaction.amount:.2f})")
+        log_activity(f"Updated transaction: '{transaction.description}'")
         db.session.commit()
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('main.transactions'))
 
-    return render_template('edit_transaction.html', transaction=transaction, accounts=accounts, categories=categories)
+    return render_template('add_edit_transaction.html', form=form, title='Edit Transaction')
 
 @main_bp.route('/delete_transaction/<int:transaction_id>', methods=['POST'])
 @login_required

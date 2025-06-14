@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<article>
+    <hgroup>
+        <h2>{{ title }}</h2>
+        {% if form.description.data %}
+        <p>Updating details for '{{ form.description.data }}'</p>
+        {% endif %}
+    </hgroup>
+    
+    <form method="POST" action="">
+        {{ form.hidden_tag() }}
+
+        <div class="grid">
+            <div>
+                <label>{{ form.transaction_type.label }}</label>
+                <fieldset>
+                    {% for subfield in form.transaction_type %}
+                        <label for="{{ subfield.id }}">
+                            {{ subfield }} {{ subfield.label.text }}
+                        </label>
+                    {% endfor %}
+                </fieldset>
+            </div>
+            <div>
+                {{ form.amount.label }}
+                {{ form.amount(placeholder="e.g., 50.75") }}
+                {% for error in form.amount.errors %}
+                    <small class="error-text">{{ error }}</small>
+                {% endfor %}
+            </div>
+        </div>
+
+        {{ form.description.label }}
+        {{ form.description(placeholder="e.g., Coffee with friend") }}
+        {% for error in form.description.errors %}
+            <small class="error-text">{{ error }}</small>
+        {% endfor %}
+
+        <div class="grid">
+            <div>
+                {{ form.account.label }}
+                {{ form.account() }}
+                 {% for error in form.account.errors %}
+                    <small class="error-text">{{ error }}</small>
+                {% endfor %}
+            </div>
+            <div id="category-field-container">
+                {{ form.category.label }}
+                {{ form.category() }}
+                {% for error in form.category.errors %}
+                    <small class="error-text">{{ error }}</small>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {{ form.tags.label }}
+        {{ form.tags(placeholder="e.g., coffee, social, urgent") }}
+        
+        {{ form.notes.label }}
+        {{ form.notes(rows=3) }}
+
+        <br>
+        {{ form.submit(class="contrast") }}
+    </form>
+</article>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const transactionTypeRadios = document.querySelectorAll('input[name="transaction_type"]');
+    const categoryContainer = document.getElementById('category-field-container');
+
+    function toggleCategoryField() {
+        // Find the value of the currently checked radio button
+        const selectedType = document.querySelector('input[name="transaction_type"]:checked').value;
+        
+        if (selectedType === 'expense') {
+            categoryContainer.style.display = 'block';
+        } else {
+            categoryContainer.style.display = 'none';
+        }
+    }
+
+    // Add an event listener to each radio button to run our function on change
+    transactionTypeRadios.forEach(radio => {
+        radio.addEventListener('change', toggleCategoryField);
+    });
+
+    // Run the function once on page load to set the correct initial state
+    toggleCategoryField();
+});
+</script>
+{% endblock %}
