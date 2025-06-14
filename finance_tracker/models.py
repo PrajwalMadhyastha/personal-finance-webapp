@@ -18,6 +18,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(150), nullable=False)
+    api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
     transactions = db.relationship('Transaction', backref='user', lazy=True, cascade="all, delete-orphan")
     accounts = db.relationship('Account', backref='user', lazy=True, cascade="all, delete-orphan")
     

@@ -31,5 +31,28 @@
                 <button type="submit" name="action" value="change_password">Change Password</button>
             </form>
         </article>
+
+        <article>
+            <hgroup>
+                <h2>API Key Management</h2>
+                <p>Use this key for programmatic access to your account data.</p>
+            </hgroup>
+
+            {% if current_user.api_key %}
+                <label for="api_key">Your Current API Key</label>
+                <input type="text" id="api_key" name="api_key" value="{{ current_user.api_key }}" readonly>
+                <small>Copy this key and store it securely. You will not be shown this key again.</small>
+            {% else %}
+                <p>You have not generated an API key yet.</p>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('main.generate_api_key') }}" style="margin-top: 1rem;">
+                <button type="submit" class="contrast" onclick="return confirm('Are you sure? Generating a new key will invalidate your old one permanently.');">
+                    Generate New API Key
+                </button>
+            </form>
+            <hr>
+            <p><strong>Warning:</strong> Treat your API key like a password. Do not share it or expose it in client-side code.</p>
+        </article>
     </div>
 {% endblock %}

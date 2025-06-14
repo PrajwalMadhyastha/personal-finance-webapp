@@ -9,6 +9,7 @@ from flask_login import login_user, logout_user, login_required, current_user
 from . import db, bcrypt
 import decimal
 import csv
+import secrets
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -503,6 +504,22 @@ def profile():
 
     # For a GET request, just render the page as usual
     return render_template('profile.html')
+
+@main_bp.route('/profile/generate-api-key', methods=['POST'])
+@login_required
+def generate_api_key():
+    """Generates a new, secure API key for the current user."""
+    
+    # Generate a cryptographically secure, 32-byte token, represented as a 64-character hex string.
+    new_key = secrets.token_hex(32)
+    
+    # Assign the new key to the user and save to the database
+    current_user.api_key = new_key
+    log_activity("Generated new API key.")
+    db.session.commit()
+    
+    flash('A new API key has been generated successfully. Your old key is now invalid.', 'success')
+    return redirect(url_for('main.profile'))
 
 
 @main_bp.route('/register', methods=['GET', 'POST'])
