@@ -79,7 +79,7 @@
                     <th>Amount</th>
                     <th>Frequency</th>
                     <th>Next Due Date</th>
-                    <!-- <th>Actions</th> -->
+                    <th>Actions</th> <!-- New Column -->
                 </tr>
             </thead>
             <tbody>
@@ -92,7 +92,9 @@
                     </td>
                     <td>{{ item.recurrence_interval|capitalize }}</td>
                     <td>{{ item.next_due_date.strftime('%Y-%m-%d') }}</td>
-                    <!-- <td><small>N/A</small></td> -->
+                    <td>
+                        <a href="{{ url_for('main.view_generated_transactions', recurring_id=item.id) }}" role="button" class="outline">View Generated</a>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

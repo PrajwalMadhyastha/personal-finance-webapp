@@ -48,6 +48,7 @@ class Transaction(db.Model):
     transaction_date = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     description = db.Column(db.String(200), nullable=False)
     notes = db.Column(db.Text, nullable=True)
+    recurring_transaction_id = db.Column(db.Integer, db.ForeignKey('recurring_transaction.id'), nullable=True)
 
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
@@ -92,22 +93,18 @@ class RecurringTransaction(db.Model):
     description = db.Column(db.String(200), nullable=False)
     amount = db.Column(db.Numeric(10, 2), nullable=False)
     transaction_type = db.Column(db.String(20), nullable=False)  # 'income' or 'expense'
-    
     recurrence_interval = db.Column(db.String(50), nullable=False) # e.g., 'daily', 'weekly', 'monthly', 'yearly'
-    
     start_date = db.Column(db.Date, nullable=False)
-    
     next_due_date = db.Column(db.Date, nullable=False)
     last_processed_date = db.Column(db.Date, nullable=True)
-    
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
-    
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=True) # Nullable for income
     
     # Define relationships to load related objects
     account = db.relationship('Account', backref='recurring_transactions')
     category = db.relationship('Category', backref='recurring_transactions')
+    generated_transactions = db.relationship('Transaction', backref='recurring_rule', lazy='dynamic')
 
 class Asset(db.Model):
     __tablename__ = 'asset'
