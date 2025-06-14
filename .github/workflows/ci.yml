@@ -10,7 +10,7 @@ jobs:
   # =======================================================
   # JOB 1: Run the test suite
   # =======================================================
-  test:
+  lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout Repository'
@@ -26,9 +26,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: 'Lint with flake8'
+        run: |
+          # Run flake8 with some useful flags:
+          # --count: show total number of errors
+          # --show-source: display the problematic code line
+          # --statistics: show counts of each error type
+          flake8 finance_tracker/ --count --show-source --statistics
+
       - name: 'Run Tests with Coverage'
         run: |
-          # Generate both a terminal report and the html report for upload
           pytest --cov=finance_tracker --cov-report=html
 
       - name: 'Upload Coverage Report'
@@ -41,7 +48,7 @@ jobs:
   # =======================================================
   build-and-push:
     runs-on: ubuntu-latest
-    needs: test
+    needs: lint-and-test
     permissions:
       contents: read
       packages: write # Permission for GITHUB_TOKEN to write packages
