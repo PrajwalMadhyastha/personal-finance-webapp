@@ -1275,3 +1275,36 @@ def add_investment():
 
     # For a GET request, just show the form
     return render_template('add_investment.html')
+
+@main_bp.route('/portfolio/edit/<int:transaction_id>', methods=['GET', 'POST'])
+@login_required
+def edit_investment_transaction(transaction_id):
+    stmt = select(InvestmentTransaction).options(selectinload(InvestmentTransaction.asset)).where(InvestmentTransaction.id == transaction_id)
+    trans = db.session.execute(stmt).scalar_one_or_none()
+    if not trans or trans.user_id != current_user.id:
+        abort(404)
+
+    if request.method == 'POST':
+        trans.transaction_type = request.form.get('transaction_type')
+        trans.quantity = decimal.Decimal(request.form.get('quantity'))
+        trans.price_per_unit = decimal.Decimal(request.form.get('price_per_unit'))
+        trans.transaction_date = datetime.strptime(request.form.get('transaction_date'), '%Y-%m-%d')
+        log_activity(f"Updated investment transaction for {trans.asset.ticker_symbol}.")
+        db.session.commit()
+        flash('Investment transaction updated successfully.', 'success')
+        return redirect(url_for('main.portfolio'))
+
+    return render_template('edit_investment.html', trans=trans)
+
+@main_bp.route('/portfolio/delete/<int:transaction_id>', methods=['POST'])
+@login_required
+def delete_investment_transaction(transaction_id):
+    trans = db.session.get(InvestmentTransaction, transaction_id)
+    if not trans or trans.user_id != current_user.id:
+        abort(404)
+        
+    log_activity(f"Deleted {trans.transaction_type} of {trans.quantity} {trans.asset.ticker_symbol} from portfolio.")
+    db.session.delete(trans)
+    db.session.commit()
+    flash('Investment transaction deleted.', 'success')
+    return redirect(url_for('main.portfolio'))
