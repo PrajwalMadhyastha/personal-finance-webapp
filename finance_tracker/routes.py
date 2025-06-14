@@ -1,9 +1,9 @@
 # ===================================================================
-# IMPORTS (CONSOLIDATED AND COMPLETE)
+# IMPORTS (CONSOLIDATED AND FINAL)
 # ===================================================================
 from flask import (
     Blueprint, render_template, request, redirect, url_for, flash, 
-    abort, jsonify, Response
+    abort, jsonify, Response, current_app
 )
 from flask_login import login_user, logout_user, login_required, current_user
 from . import db, bcrypt
@@ -12,29 +12,38 @@ import csv
 import io
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from .models import Transaction, User, Category, Account, Budget, Tag, transaction_categories, RecurringTransaction, Asset, InvestmentTransaction
+from .models import (
+    Transaction, User, Category, Account, Budget, Tag, 
+    transaction_categories, RecurringTransaction, ActivityLog,
+    Asset, InvestmentTransaction
+)
 from sqlalchemy import func, select, or_
 from sqlalchemy.orm import selectinload
 import calendar
-
 from dateutil.relativedelta import relativedelta
-from flask import (
-    Blueprint, render_template, request, redirect, url_for, flash, 
-    abort, jsonify, Response, current_app
-)
 
+# ===================================================================
+# BLUEPRINT DEFINITION
+# ===================================================================
 main_bp = Blueprint('main', __name__)
 
 # ===================================================================
-# CORE ROUTES (INDEX & DASHBOARD)
+# HELPER FUNCTION
 # ===================================================================
+def log_activity(description):
+    """Helper function to create an ActivityLog entry for the current user."""
+    if current_user.is_authenticated:
+        log_entry = ActivityLog(user_id=current_user.id, description=description)
+        db.session.add(log_entry)
 
+# ===================================================================
+# CORE & DASHBOARD ROUTES
+# ===================================================================
 @main_bp.route('/')
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
     return render_template('index.html')
-
 
 @main_bp.route('/dashboard')
 @login_required
@@ -49,13 +58,15 @@ def dashboard():
     current_month = now_utc.month
     current_year = now_utc.year
 
-    current_budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
-    current_budgets = db.session.execute(current_budgets_stmt).scalars().all()
+    budgets_stmt = select(Budget).filter_by(user_id=current_user.id, month=current_month, year=current_year)
+    current_budgets = db.session.execute(budgets_stmt).scalars().all()
+    
+    activity_logs_stmt = select(ActivityLog).filter_by(user_id=current_user.id).order_by(ActivityLog.timestamp.desc()).limit(5)
+    recent_activity = db.session.execute(activity_logs_stmt).scalars().all()
     
     expenses_by_category_stmt = select(
         transaction_categories.c.category_id, func.sum(Transaction.amount)
-    ).join(
-        Transaction, Transaction.id == transaction_categories.c.transaction_id
+    ).join(Transaction, Transaction.id == transaction_categories.c.transaction_id
     ).where(
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
@@ -83,22 +94,18 @@ def dashboard():
     return render_template('dashboard.html', 
                            accounts=user_accounts, 
                            transactions=recent_transactions,
-                           budget_progress=budget_progress_data)
-
+                           budget_progress=budget_progress_data,
+                           activity_logs=recent_activity)
 
 # ===================================================================
 # TRANSACTION CRUD
 # ===================================================================
-
 @main_bp.route('/transactions')
 @login_required
 def transactions():
     page = request.args.get('page', 1, type=int)
     search_query = request.args.get('q', '').strip()
-    stmt = select(Transaction).options(
-        selectinload(Transaction.categories), 
-        selectinload(Transaction.tags)
-    ).filter(Transaction.user_id == current_user.id)
+    stmt = select(Transaction).options(selectinload(Transaction.categories), selectinload(Transaction.tags)).filter_by(user_id=current_user.id)
     if search_query:
         search_term = f"%{search_query}%"
         stmt = stmt.join(Transaction.categories, isouter=True).join(Transaction.tags, isouter=True).filter(
@@ -112,7 +119,6 @@ def transactions():
     stmt = stmt.order_by(Transaction.transaction_date.desc())
     all_transactions = db.paginate(stmt, page=page, per_page=15)
     return render_template('transactions.html', transactions=all_transactions, search_query=search_query)
-
 
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
@@ -131,16 +137,16 @@ def add_transaction():
 
         if not description: errors['description'] = 'Description is required.'
         if not amount_str: errors['amount'] = 'Amount is required.'
-        if not account_id_str: errors['account'] = 'Account is required.'
+        if not account_id_str: errors['account'] = 'An account is required.'
         if trans_type == 'expense' and not category_id: errors['category'] = 'Category is required for expenses.'
-
+        
         amount = None
         if not errors.get('amount'):
             try:
                 amount = decimal.Decimal(amount_str)
                 if amount <= 0: errors['amount'] = 'Amount must be positive.'
             except decimal.InvalidOperation:
-                errors['amount'] = 'Invalid amount format.'
+                errors['amount'] = 'Please enter a valid number.'
 
         if errors:
             flash('Please correct the errors below.', 'error')
@@ -148,8 +154,9 @@ def add_transaction():
         
         new_transaction = Transaction(
             amount=amount, transaction_type=trans_type, description=description,
-            notes=form_data.get('notes', '').strip(), user_id=current_user.id,
-            account_id=int(account_id_str)
+            notes=form_data.get('notes', '').strip(),
+            user_id=current_user.id, account_id=int(account_id_str),
+            transaction_date=datetime.now(timezone.utc)
         )
         db.session.add(new_transaction)
 
@@ -173,22 +180,23 @@ def add_transaction():
             if new_transaction.transaction_type == 'income': account.balance += amount
             else: account.balance -= amount
 
+        log_activity(f"Added transaction: '{new_transaction.description}' (₹{new_transaction.amount:.2f})")
         db.session.commit()
         flash(f'{trans_type.capitalize()} added successfully!', 'success')
         return redirect(url_for('main.dashboard'))
 
     return render_template('add_transaction.html', errors={}, form_data={}, accounts=accounts, categories=categories)
 
-
 @main_bp.route('/edit_transaction/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_transaction(transaction_id):
     transaction = db.session.get(Transaction, transaction_id)
-    if not transaction or transaction.user_id != current_user.id:
-        abort(404)
+    if not transaction or transaction.user_id != current_user.id: abort(404)
     
+    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
+    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+
     if request.method == 'POST':
-        # ... (logic to update balance, amount, description, etc. is correct) ...
         original_amount = transaction.amount
         original_type = transaction.transaction_type
         original_account = transaction.account
@@ -199,21 +207,20 @@ def edit_transaction(transaction_id):
         
         transaction.amount = decimal.Decimal(request.form.get('amount'))
         transaction.transaction_type = request.form.get('transaction_type')
-        # ... etc.
-
+        transaction.description = request.form.get('description')
+        transaction.notes = request.form.get('notes')
+        transaction.account_id = int(request.form.get('account_id'))
+        
         new_account = db.session.get(Account, transaction.account_id)
         if new_account:
             if transaction.transaction_type == 'income': new_account.balance += transaction.amount
             else: new_account.balance -= transaction.amount
             
-        # --- THIS IS THE CRITICAL LOGIC THAT WAS MISSING ---
-        # Clear old associations and add new ones
         transaction.categories.clear()
         category_id = request.form.get('category_id')
         if category_id:
             category = db.session.get(Category, int(category_id))
-            if category:
-                transaction.categories.append(category)
+            if category: transaction.categories.append(category)
 
         transaction.tags.clear()
         tags_string = request.form.get('tags', '').strip()
@@ -226,24 +233,23 @@ def edit_transaction(transaction_id):
                     tag = Tag(name=tag_name, user_id=current_user.id)
                     db.session.add(tag)
                 transaction.tags.append(tag)
-        # --- END OF CRITICAL LOGIC ---
-
+        
+        log_activity(f"Updated transaction: '{transaction.description}' (₹{transaction.amount:.2f})")
         db.session.commit()
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('main.transactions'))
 
-    # GET request logic
-    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
-    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars().all()
     return render_template('edit_transaction.html', transaction=transaction, accounts=accounts, categories=categories)
 
-
+# THIS FUNCTION WAS MISSING
 @main_bp.route('/delete_transaction/<int:transaction_id>', methods=['POST'])
 @login_required
 def delete_transaction(transaction_id):
     transaction = db.session.get(Transaction, transaction_id)
     if not transaction: abort(404)
     if transaction.user_id != current_user.id: abort(403)
+
+    log_activity(f"Deleted transaction: '{transaction.description}' (₹{transaction.amount:.2f})")
 
     account = transaction.account
     if account:
@@ -291,6 +297,7 @@ def add_account():
             name=name, account_type=acc_type, balance=balance, user_id=current_user.id
         )
         db.session.add(new_account)
+        log_activity(f"Created new account: '{new_account.name}'")
         db.session.commit()
         flash('Account created successfully!', 'success')
         return redirect(url_for('main.accounts'))

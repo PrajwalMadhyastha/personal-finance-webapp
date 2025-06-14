@@ -127,6 +127,21 @@
                 <p>No transactions recorded yet.</p>
             {% endif %}
         </article>
+        <article>
+            <h4>Recent Activity</h4>
+            {% if activity_logs %}
+                <ul>
+                    {% for log in activity_logs %}
+                        <li>
+                            {{ log.description }}<br>
+                            <small><em>{{ log.timestamp.strftime('%b %d, %Y at %I:%M %p') }} UTC</em></small>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No recent activity to display.</p>
+            {% endif %}
+        </article>
     </div>
 
 {% endblock %}

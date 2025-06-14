@@ -26,6 +26,7 @@ class User(db.Model, UserMixin):
     tags = db.relationship('Tag', backref='user', lazy=True, cascade="all, delete-orphan")
     recurring_transactions = db.relationship('RecurringTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
     investment_transactions = db.relationship('InvestmentTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
+    activity_logs = db.relationship('ActivityLog', backref='user', lazy=True, cascade="all, delete-orphan")
 
 class Account(db.Model):
     __tablename__ = 'account'
@@ -128,3 +129,10 @@ class InvestmentTransaction(db.Model):
     
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     asset_id = db.Column(db.Integer, db.ForeignKey('asset.id'), nullable=False)
+
+class ActivityLog(db.Model):
+    __tablename__ = 'activity_log'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    description = db.Column(db.String(255), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
