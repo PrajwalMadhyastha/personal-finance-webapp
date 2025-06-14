@@ -47,33 +47,33 @@
             </article>
         </div>
     </article>
-    <style>.card-link { text-decoration: none; }</style>
-    
-    <article>
-        <hgroup>
-            <h4>This Month's Budget Progress</h4>
-            <p>Your spending progress for every category you've budgeted for this month.</p>
-        </hgroup>
-        {% if budget_progress %}
-            {% for budget in budget_progress %}
-                <div>
-                    <label>{{ budget.category_name }}</label>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" 
-                             style="width: {{ [budget.percentage_used, 100] | min }}%; background-color: {{ budget.color }};">
+        <style>.card-link { text-decoration: none; }</style>
+        
+        <article>
+            <hgroup>
+                <h4>This Month's Budget Progress</h4>
+                <p>Your spending progress for every category you've budgeted for this month.</p>
+            </hgroup>
+            {% if budget_progress %}
+                {% for budget in budget_progress %}
+                    <div>
+                        <label>{{ budget.category_name }}</label>
+                        <div class="progress-bar-track">
+                            <div class="progress-bar-fill" 
+                                style="--width: {{ budget.width }}%; --color: {{ budget.color }};">
+                            </div>
                         </div>
+                        <small>
+                            ₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} 
+                            ({{ "%.0f"|format(budget.percentage_used) }}%)
+                        </small>
                     </div>
-                    <small>
-                        ₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} 
-                        ({{ "%.0f"|format(budget.percentage_used) }}%)
-                    </small>
-                </div>
-                {% if not loop.last %}<br>{% endif %}
-            {% endfor %}
-        {% else %}
-            <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
-        {% endif %}
-    </article> 
+                    {% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+            {% else %}
+                <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
+            {% endif %}
+        </article>
 
     <div class="grid">
         <article>

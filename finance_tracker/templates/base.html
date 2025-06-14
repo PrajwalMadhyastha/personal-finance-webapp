@@ -20,28 +20,20 @@
 
         /* --- FINAL PROGRESS BAR STYLES --- */
         .progress-bar-track {
-            height: 1rem;
-            background-color: #e9ecef; /* Light grey track */
-            border-radius: var(--pico-border-radius);
-            overflow: hidden;
-        }
+          height: 1rem;
+          background-color: #e9ecef;
+          border-radius: var(--pico-border-radius);
+          overflow: hidden;
+          border: 1px solid var(--pico-form-element-border-color);
+      }
 
-        .progress-bar-fill {
-            height: 100%;
-            /* Default state is the primary blue color */
-            background-color: var(--pico-primary);
-            transition: width 0.5s ease-in-out, background-color 0.5s ease;
-        }
-
-        /* The .warning class will ALWAYS override the default color now */
-        .progress-bar-fill.warning {
-            background-color: var(--pico-color-amber-400);
-        }
-
-        /* The .danger class will ALWAYS override the default color now */
-        .progress-bar-fill.danger {
-            background-color: var(--pico-color-red-500);
-        }
+      .progress-bar-fill {
+          height: 100%;
+          /* These rules now READ the variables we set in dashboard.html */
+          width: var(--width, 0%); /* Default to 0% if variable isn't set */
+          background-color: var(--color, var(--pico-primary)); /* Default to blue */
+          transition: width 0.5s ease-in-out, background-color 0.2s ease;
+      }
     </style>
 </head>
 <body>

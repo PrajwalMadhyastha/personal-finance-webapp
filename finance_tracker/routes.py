@@ -108,14 +108,17 @@ def dashboard():
         total_spent = spending_by_category.get(budget.category_id, decimal.Decimal(0))
         percentage_used = (total_spent / budget.amount) * 100 if budget.amount > 0 else 0
         
-        color_var = 'var(--pico-primary)'
-        if percentage_used > 100: color_var = 'var(--pico-color-red-500)'
-        elif percentage_used > 85: color_var = 'var(--pico-color-amber-400)'
+        # Calculate the final values to be used directly in the template
+        width_percent = min(percentage_used, 100)
+        color_hex = '#1095c1'  # Default blue
+        if percentage_used > 100: color_hex = '#d92121'  # Red
+        elif percentage_used > 85: color_hex = '#ffb700'  # Yellow/Amber
 
         budget_progress_data.append({
             'category_name': budget.category.name, 'budget_limit': budget.amount,
             'total_spent': total_spent, 'percentage_used': percentage_used,
-            'color': color_var
+            'width': width_percent,
+            'color': color_hex
         })
     
     # --- Final Render with ALL Data ---
