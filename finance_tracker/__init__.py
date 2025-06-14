@@ -70,6 +70,9 @@ def create_app(test_config=None):
     from .routes import main_bp
     app.register_blueprint(main_bp)
 
+    from .api_routes import api_bp
+    app.register_blueprint(api_bp)
+
     return app
 
 @login_manager.user_loader
