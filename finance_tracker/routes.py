@@ -678,6 +678,28 @@ def generate_api_key():
     flash('A new API key has been generated successfully. Your old key is now invalid.', 'success')
     return redirect(url_for('main.profile'))
 
+@main_bp.route('/profile/delete', methods=['POST'])
+@login_required
+def delete_account_permanently():
+    """Permanently deletes the current user and all their associated data."""
+    
+    # We get the user object for the logged-in user
+    user_to_delete = db.session.get(User, current_user.id)
+    
+    if user_to_delete:
+        # Log the user out first
+        logout_user()
+        
+        # Delete the user object. The 'cascade' option will automatically
+        # delete all associated transactions, accounts, budgets, etc.
+        db.session.delete(user_to_delete)
+        db.session.commit()
+        
+        flash('Your account and all associated data have been permanently deleted.', 'success')
+    
+    # Redirect to the homepage after deletion
+    return redirect(url_for('main.index'))
+
 
 @main_bp.route('/register', methods=['GET', 'POST'])
 def register():

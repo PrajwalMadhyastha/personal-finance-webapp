@@ -19,9 +19,9 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(150), nullable=False)
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
+
     transactions = db.relationship('Transaction', backref='user', lazy=True, cascade="all, delete-orphan")
     accounts = db.relationship('Account', backref='user', lazy=True, cascade="all, delete-orphan")
-    
     categories = db.relationship('Category', backref='user', lazy=True, cascade="all, delete-orphan")
     budgets = db.relationship('Budget', backref='user', lazy=True, cascade="all, delete-orphan")
     tags = db.relationship('Tag', backref='user', lazy=True, cascade="all, delete-orphan")

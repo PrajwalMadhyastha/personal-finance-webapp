@@ -88,8 +88,21 @@ case "$1" in
         $COMPOSER exec webapp bash
         ;;
     db)
-        echo -e "${CYAN}--- Running database command: flask db ${2:-} ---${NC}"
-        $COMPOSER run --rm --env-file .env webapp flask db "${@:2}"
+        DB_COMMAND="${2:-}"
+        if [ -z "$DB_COMMAND" ]; then
+            echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
+            usage
+        fi
+        echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
+        
+        # This now ensures the container is running WITHOUT forcing a rebuild.
+        echo "Ensuring webapp container is running..."
+        $COMPOSER up -d webapp
+        
+        echo "Executing command..."
+        $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
+        
+        echo -e "${GREEN}Database command finished.${NC}"
         ;;
     *)
         echo -e "${RED}Error: Unknown command '$1'${NC}"

@@ -55,4 +55,28 @@
             <p><strong>Warning:</strong> Treat your API key like a password. Do not share it or expose it in client-side code.</p>
         </article>
     </div>
+
+    <article class="danger-zone">
+        <hgroup>
+            <h2 style="color: var(--pico-color-red-600);">Danger Zone</h2>
+            <p>This action is irreversible.</p>
+        </hgroup>
+        
+        <form method="POST" action="{{ url_for('main.delete_account_permanently') }}">
+            <p>Once you delete your account, there is no going back. All of your data, including all transactions, accounts, and budgets, will be permanently removed.</p>
+            
+            <button type="submit" class="contrast" 
+                    onclick="return confirm('Are you absolutely sure you want to delete your account? This will permanently erase all of your data and cannot be undone.');">
+                Delete My Account Permanently
+            </button>
+        </form>
+    </article>
+
+    <!-- You can add this style to make the danger zone stand out -->
+    <style>
+        .danger-zone {
+            border-color: var(--pico-color-red-600);
+            border-width: 2px;
+        }
+    </style>
 {% endblock %}
