@@ -101,6 +101,8 @@ jobs:
       - name: 'Run Database Migrations'
         # This command executes 'flask db upgrade' inside the running container app.
         # It uses the environment variables already configured in Azure to connect to the DB.
+        env:
+          TERM: dumb
         run: |
           az containerapp exec \
             --name pfa-webapp \

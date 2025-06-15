@@ -53,7 +53,7 @@ case "$1" in
         ;;
     start-app)
         echo -e "${GREEN}--- Building and starting webapp container... ---${NC}"
-        $COMPOSER up -d --build webapp
+        $COMPOSER up -d webapp
         echo -e "${GREEN}✅ Web application is running in the background.${NC}"
         echo -e "   -> Use './scripts/manage.sh logs' to see the output."
         ;;
@@ -65,9 +65,11 @@ case "$1" in
         echo -e "${YELLOW}--- Restarting webapp container (stopping, rebuilding, and starting)... ---${NC}"
         $COMPOSER restart webapp
         echo -e "${GREEN}✅ Web application restarted.${NC}"
-        #$COMPOSER stop webapp
-        #$COMPOSER up -d --build webapp
-        #echo -e "${GREEN}✅ Web application has been restarted in the background.${NC}"
+        ;;
+    rebuild-app)
+        echo -e "${YELLOW}--- Forcing a rebuild and restart of the webapp... ---${NC}"
+        $COMPOSER up -d --build webapp
+        echo -e "${GREEN}✅ Web application has been rebuilt and started.${NC}"
         ;;
     down)
         echo -e "${RED}--- Stopping and removing all containers, networks, and volumes... ---${NC}"
@@ -90,20 +92,24 @@ case "$1" in
         $COMPOSER exec webapp bash
         ;;
     db)
-    DB_COMMAND="${2:-}"
-    if [ -z "$DB_COMMAND" ]; then
-        echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
+        DB_COMMAND="${2:-}"
+        if [ -z "$DB_COMMAND" ]; then
+            echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
+            usage
+        fi
+        echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
+
+        # This now ensures the container is running WITHOUT forcing a rebuild.
+        echo "Ensuring webapp container is running..."
+        $COMPOSER up -d webapp
+
+        echo "Executing command..."
+        $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
+
+        echo -e "${GREEN}Database command finished.${NC}"
+        ;;
+    *)
+        echo -e "${RED}Error: Unknown command '$1'${NC}"
         usage
-    fi
-    echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
-
-    # This now ensures the container is running WITHOUT forcing a rebuild.
-    echo "Ensuring webapp container is running..."
-    $COMPOSER up -d webapp
-
-    echo "Executing command..."
-    $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
-
-    echo -e "${GREEN}Database command finished.${NC}"
-    ;;
+        ;;
 esac
