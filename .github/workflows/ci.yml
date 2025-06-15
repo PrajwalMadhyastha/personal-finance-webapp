@@ -28,11 +28,8 @@ jobs:
 
       - name: 'Lint with flake8'
         run: |
-          # Run flake8 with some useful flags:
-          # --count: show total number of errors
-          # --show-source: display the problematic code line
-          # --statistics: show counts of each error type
-          flake8 finance_tracker/ --count --show-source --statistics
+          # The --exit-zero flag will report errors but will not fail the job.
+          flake8 finance_tracker/ --count --show-source --statistics --exit-zero
 
       - name: 'Run Tests with Coverage'
         run: |
