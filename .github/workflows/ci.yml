@@ -63,36 +63,35 @@ jobs:
   run-migration-job:
     name: Run Database Migrations
     runs-on: ubuntu-latest
-    needs: build-and-push
-    environment: production
+    needs: deploy-infra-and-app
+    if: always() && (needs.deploy-infra-and-app.result == 'success' || needs.deploy-infra-and-app.result == 'skipped')
     steps:
       - name: 'Log in to Azure'
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: 'Update Migration Job with Latest Image'
+      - name: 'Update and Start the Database Migration Job'
+        id: start_job
         run: |
-          echo "Updating the migration job with image: ${{ needs.build-and-push.outputs.image_tag }}"
+          echo "Updating the migration job with the latest image..."
           az containerapp job update \
             --name pfa-migration-job \
             --resource-group personal-finance-app-rg \
             --image ${{ needs.build-and-push.outputs.image_tag }}
-
-      - name: 'Start the Database Migration Job'
-        id: start_job
-        run: |
+          
           echo "Starting the migration job..."
           EXECUTION_NAME=$(az containerapp job start \
             --name pfa-migration-job \
             --resource-group personal-finance-app-rg \
             --query "name" -o tsv)
-          echo "Started job execution: $EXECUTION_NAME"
           echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
 
       - name: 'Wait for migration job to complete'
         run: |
           echo "Waiting for job execution ${{ steps.start_job.outputs.execution_name }}..."
+          
+          # Loop to check the status
           end_time=$((SECONDS+300))
           while [ $SECONDS -lt $end_time ]; do
             STATUS=$(az containerapp job execution show \
@@ -100,18 +99,27 @@ jobs:
               --resource-group personal-finance-app-rg \
               --job-execution-name ${{ steps.start_job.outputs.execution_name }} \
               --query "properties.status" -o tsv)
+
             echo "Current job status: $STATUS"
+
             if [[ "$STATUS" == "Succeeded" ]]; then
               echo "::notice::Migration job completed successfully."
-              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --job-execution-name ${{ steps.start_job.outputs.execution_name }}
+              # Also get logs on success for history
+              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --execution-name ${{ steps.start_job.outputs.execution_name }}
               exit 0
             elif [[ "$STATUS" == "Failed" || "$STATUS" == "Canceled" ]]; then
               echo "::error::Migration job failed with status: $STATUS"
-              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --job-execution-name ${{ steps.start_job.outputs.execution_name }}
+              echo "Fetching logs from the failed job execution..."
+              # --- THIS IS THE CORRECTED COMMAND ---
+              az containerapp job logs \
+                --name pfa-migration-job \
+                --resource-group personal-finance-app-rg \
+                --execution-name ${{ steps.start_job.outputs.execution_name }}
               exit 1
             fi
             sleep 20
           done
+          
           echo "::error::Timeout: Migration job did not complete within 5 minutes."
           exit 1
 
