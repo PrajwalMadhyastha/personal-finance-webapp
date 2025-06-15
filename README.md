@@ -53,13 +53,7 @@ To run this project on your local machine, you will need `git` and `docker` (wit
 git clone [https://github.com/YourUsername/personal-finance-webapp.git](https://github.com/YourUsername/personal-finance-webapp.git)
 cd personal-finance-webapp
 ```
-
-1. Clone the Repository
-```bash
-git clone [https://github.com/YourUsername/personal-finance-webapp.git](https://github.com/YourUsername/personal-finance-webapp.git)
-cd personal-finance-webapp
-```
-2. Set Up Environment Variables
+### 2. Set Up Environment Variables
 The application requires a .env file for its configuration. A helper script is provided to create this from a template.
 ```bash
 # This will create a .env file from the .env.example template
@@ -71,10 +65,10 @@ SECRET_KEY and TASK_SECRET_KEY: Generate two long, random strings for these. You
 
 DB_SA_PASSWORD and DB_ADMIN_PASSWORD: Set these to the same complex password for the local database (e.g., Your.Strong.Password123!).
 
-3. Start the Local Environment
+### 3. Start the Local Environment
 The project uses a manage.sh script to orchestrate Docker Compose.
 
-a) Start the Database (One-time setup)
+#### a) Start the Database (One-time setup)
 
 First, start the standalone database container. This will be slow the first time as it downloads the SQL Server image.
 ```bash
@@ -82,13 +76,13 @@ First, start the standalone database container. This will be slow the first time
 ```
 Wait a minute or two for the database to become healthy. You can check its status with docker ps.
 
-b) Apply Database Migrations
+#### b) Apply Database Migrations
 
 Once the database is running, you need to create all the application tables.
 ```bash
 ./scripts/manage.sh db upgrade
 ```
-c) Start the Application
+#### c) Start the Application
 
 Finally, start the Flask web application container.
 ```bash
@@ -96,7 +90,7 @@ Finally, start the Flask web application container.
 ```
 Your local development environment is now fully running! You can access the application in your web browser at http://localhost:5000.
 
-☁️ Cloud Deployment & CI/CD Setup
+## ☁️ Cloud Deployment & CI/CD Setup
 To enable the automated deployment pipeline for your own fork of this repository, you must configure the following secrets in your GitHub repo.
 
 Navigate to Settings > Secrets and variables > Actions and create the following Repository secrets:
