@@ -67,6 +67,8 @@ case "$1" in
         echo -e "${GREEN}✅ Web application restarted.${NC}"
         ;;
     rebuild-app)
+        echo -e "${YELLOW}--- Stopping webapp container... ---${NC}"
+        $COMPOSER stop webapp
         echo -e "${YELLOW}--- Forcing a rebuild and restart of the webapp... ---${NC}"
         $COMPOSER up -d --build webapp
         echo -e "${GREEN}✅ Web application has been rebuilt and started.${NC}"

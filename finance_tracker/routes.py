@@ -24,7 +24,7 @@ import calendar
 from dateutil.relativedelta import relativedelta
 from .forms import TransactionForm
 import codecs
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, ContentSettings
 from werkzeug.utils import secure_filename
 import mimetypes
 import os
@@ -900,16 +900,12 @@ def tag_detail(tag_name):
 @main_bp.route('/profile/avatar/upload', methods=['POST'])
 @login_required
 def upload_avatar():
-    if 'avatar' not in request.files:
-        flash('No file part in the request.', 'danger')
+    if 'avatar' not in request.files or not request.files['avatar'].filename:
+        flash('No file selected.', 'warning')
         return redirect(url_for('main.profile'))
     
     file = request.files['avatar']
-    if file.filename == '':
-        flash('No file selected.', 'warning')
-        return redirect(url_for('main.profile'))
 
-    # Check for allowed file types
     allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif'}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed_extensions:
@@ -922,24 +918,19 @@ def upload_avatar():
             flash('Storage service is not configured.', 'danger')
             return redirect(url_for('main.profile'))
 
-        # Create a unique filename to prevent conflicts
+        file_content = file.read()
         filename = f"avatar_{current_user.id}{ext}"
         
         blob_service_client = BlobServiceClient.from_connection_string(connection_string)
         container_client = blob_service_client.get_container_client("avatars")
-
-        # --- THIS IS THE FIX ---
-        # We pass the file stream object directly to the function instead of calling .read() first.
-        # This is the more robust way to handle file uploads with this library.
         blob_client = container_client.get_blob_client(filename)
-        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
         
-        # Rewind the stream just in case it has been read before
-        file.stream.seek(0) 
+        # Create a proper ContentSettings object
+        content_settings = ContentSettings(content_type=mimetypes.guess_type(filename)[0] or 'application/octet-stream')
         
-        blob_client.upload_blob(file.stream, blob_type="BlockBlob", overwrite=True, content_settings={'content_type': content_type})
-        # --- END OF FIX ---
-
+        # Upload the raw bytes content
+        blob_client.upload_blob(file_content, blob_type="BlockBlob", overwrite=True, content_settings=content_settings)
+        
         # Update the user's avatar URL
         current_user.avatar_url = blob_client.url
         log_activity("Updated profile picture.")
@@ -948,7 +939,8 @@ def upload_avatar():
         flash('Profile picture updated successfully!', 'success')
 
     except Exception as e:
-        current_app.logger.error(f"Avatar upload failed: {e}")
+        # Log the actual error on the server for debugging, but show a generic message to the user.
+        current_app.logger.error(f"Avatar upload failed for user {current_user.id}: {e}", exc_info=True)
         flash('There was an error uploading your file.', 'danger')
 
     return redirect(url_for('main.profile'))
