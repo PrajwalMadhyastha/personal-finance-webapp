@@ -909,35 +909,47 @@ def upload_avatar():
         flash('No file selected.', 'warning')
         return redirect(url_for('main.profile'))
 
-    if file:
-        try:
-            connection_string = current_app.config.get("AZURE_STORAGE_CONNECTION_STRING")
-            if not connection_string:
-                flash('Storage service is not configured.', 'danger')
-                return redirect(url_for('main.profile'))
+    # Check for allowed file types
+    allowed_extensions = {'.png', '.jpg', '.jpeg', '.gif'}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed_extensions:
+        flash('Invalid file type. Please upload a PNG, JPG, or GIF.', 'danger')
+        return redirect(url_for('main.profile'))
 
-            # Create a unique filename based on user ID to prevent conflicts
-            filename = f"avatar_{current_user.id}{os.path.splitext(file.filename)[1]}"
-            
-            # Connect to the blob service
-            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-            container_client = blob_service_client.get_container_client("avatars")
+    try:
+        connection_string = current_app.config.get("AZURE_STORAGE_CONNECTION_STRING")
+        if not connection_string:
+            flash('Storage service is not configured.', 'danger')
+            return redirect(url_for('main.profile'))
 
-            # Upload the file
-            blob_client = container_client.get_blob_client(filename)
-            content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
-            blob_client.upload_blob(file.read(), blob_type="BlockBlob", overwrite=True, content_settings={'content_type': content_type})
-            
-            # Update the user's avatar URL
-            current_user.avatar_url = blob_client.url
-            log_activity("Updated profile picture.")
-            db.session.commit()
+        # Create a unique filename to prevent conflicts
+        filename = f"avatar_{current_user.id}{ext}"
+        
+        blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+        container_client = blob_service_client.get_container_client("avatars")
 
-            flash('Profile picture updated successfully!', 'success')
+        # --- THIS IS THE FIX ---
+        # We pass the file stream object directly to the function instead of calling .read() first.
+        # This is the more robust way to handle file uploads with this library.
+        blob_client = container_client.get_blob_client(filename)
+        content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+        
+        # Rewind the stream just in case it has been read before
+        file.stream.seek(0) 
+        
+        blob_client.upload_blob(file.stream, blob_type="BlockBlob", overwrite=True, content_settings={'content_type': content_type})
+        # --- END OF FIX ---
 
-        except Exception as e:
-            current_app.logger.error(f"Avatar upload failed: {e}")
-            flash('There was an error uploading your file.', 'danger')
+        # Update the user's avatar URL
+        current_user.avatar_url = blob_client.url
+        log_activity("Updated profile picture.")
+        db.session.commit()
+
+        flash('Profile picture updated successfully!', 'success')
+
+    except Exception as e:
+        current_app.logger.error(f"Avatar upload failed: {e}")
+        flash('There was an error uploading your file.', 'danger')
 
     return redirect(url_for('main.profile'))
 
