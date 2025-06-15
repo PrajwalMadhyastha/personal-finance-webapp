@@ -15,11 +15,14 @@ resource "azurerm_container_app_job" "migration_job" {
 
   template {
     container {
-      name    = "migration-container"
-      image   = var.docker_image_to_deploy
-      cpu     = 0.25
-      memory  = "0.5Gi"
-      command = ["flask", "--app", "run:app", "db", "upgrade"]
+      name   = "migration-container"
+      image  = var.docker_image_to_deploy
+      cpu    = 0.25
+      memory = "0.5Gi"
+      command = [
+        "/bin/sh", "-c",
+        "echo '--- DIAGNOSTIC START ---' && echo '1. Current Working Directory:' && pwd && echo '2. Listing files in /app:' && ls -al /app && echo '3. Checking for run.py:' && ls -al /app/run.py && echo '4. Relevant Environment Variables:' && printenv | grep -E 'FLASK|DB' && echo '--- DIAGNOSTIC END ---'"
+      ]
 
       # The job needs the same environment variables as the main app to connect to the DB
       env {
