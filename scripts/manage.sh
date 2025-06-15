@@ -63,9 +63,11 @@ case "$1" in
         ;;
     restart-app) # <-- NEW COMMAND
         echo -e "${YELLOW}--- Restarting webapp container (stopping, rebuilding, and starting)... ---${NC}"
-        $COMPOSER stop webapp
-        $COMPOSER up -d --build webapp
-        echo -e "${GREEN}✅ Web application has been restarted in the background.${NC}"
+        $COMPOSER restart webapp
+        echo -e "${GREEN}✅ Web application restarted.${NC}"
+        #$COMPOSER stop webapp
+        #$COMPOSER up -d --build webapp
+        #echo -e "${GREEN}✅ Web application has been restarted in the background.${NC}"
         ;;
     down)
         echo -e "${RED}--- Stopping and removing all containers, networks, and volumes... ---${NC}"
@@ -88,24 +90,20 @@ case "$1" in
         $COMPOSER exec webapp bash
         ;;
     db)
-        DB_COMMAND="${2:-}"
-        if [ -z "$DB_COMMAND" ]; then
-            echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
-            usage
-        fi
-        echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
-        
-        # This now ensures the container is running WITHOUT forcing a rebuild.
-        echo "Ensuring webapp container is running..."
-        $COMPOSER up -d webapp
-        
-        echo "Executing command..."
-        $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
-        
-        echo -e "${GREEN}Database command finished.${NC}"
-        ;;
-    *)
-        echo -e "${RED}Error: Unknown command '$1'${NC}"
+    DB_COMMAND="${2:-}"
+    if [ -z "$DB_COMMAND" ]; then
+        echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
         usage
-        ;;
+    fi
+    echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
+
+    # This now ensures the container is running WITHOUT forcing a rebuild.
+    echo "Ensuring webapp container is running..."
+    $COMPOSER up -d webapp
+
+    echo "Executing command..."
+    $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
+
+    echo -e "${GREEN}Database command finished.${NC}"
+    ;;
 esac

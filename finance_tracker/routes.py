@@ -23,6 +23,7 @@ from sqlalchemy.orm import selectinload
 import calendar
 from dateutil.relativedelta import relativedelta
 from .forms import TransactionForm
+import codecs
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -419,6 +420,110 @@ def transfer():
 
     return render_template('transfer_form.html', accounts=accounts)
 
+    
+@main_bp.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_transactions():
+    if request.method == 'POST':
+        if 'transaction_file' not in request.files or not request.files['transaction_file'].filename:
+            flash('No file selected.', 'warning')
+            return redirect(request.url)
+        
+        file = request.files['transaction_file']
+        if not file.filename.endswith('.csv'):
+            flash('Invalid file type. Please upload a .csv file.', 'danger')
+            return redirect(request.url)
+
+        try:
+            csv_reader = csv.reader(codecs.iterdecode(file, 'utf-8'))
+            header = next(csv_reader) # Skip header
+            
+            transactions_to_add, accounts_to_update, errors = [], {}, []
+            success_count = 0
+
+            # Pre-fetch user's categories for efficient lookup
+            user_categories = {c.name.lower(): c for c in db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars()}
+
+            for i, row in enumerate(csv_reader):
+                row_num = i + 2
+                # --- EXPECTING 6 COLUMNS NOW ---
+                if len(row) < 6:
+                    errors.append(f"Row {row_num}: Invalid number of columns. Expected 6, got {len(row)}.")
+                    continue
+                
+                date_str, desc, amount_str, account_name, account_type, category_name = row
+                
+                try:
+                    trans_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    amount = decimal.Decimal(amount_str)
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid date ('{date_str}') or amount ('{amount_str}').")
+                    continue
+
+                trans_datetime = datetime.combine(trans_date, datetime.min.time(), tzinfo=timezone.utc)
+
+                # --- NEW, PRECISE ACCOUNT MATCHING LOGIC ---
+                stmt = select(Account).where(
+                    Account.user_id == current_user.id,
+                    func.lower(Account.name) == account_name.strip().lower(),
+                    func.lower(Account.account_type) == account_type.strip().lower()
+                )
+                account = db.session.execute(stmt).scalar_one_or_none()
+                # --- END OF NEW LOGIC ---
+
+                if not account:
+                    errors.append(f"Row {row_num}: Account with name '{account_name}' and type '{account_type}' not found.")
+                    continue
+                
+                # Find or create category
+                category = user_categories.get(category_name.strip().lower())
+                if not category and category_name.strip():
+                    category = Category(name=category_name.strip(), user_id=current_user.id)
+                    db.session.add(category)
+                    user_categories[category_name.strip().lower()] = category
+                    log_activity(f"Created new category via import: '{category.name}'")
+
+                # Prepare transaction
+                new_trans = Transaction(
+                    user_id=current_user.id,
+                    transaction_date=trans_datetime, # Use the corrected datetime object
+                    description=desc.strip(),
+                    amount=abs(amount),
+                    transaction_type='expense' if amount < 0 else 'income',
+                    account_id=account.id
+                )
+                if category: new_trans.categories.append(category)
+                transactions_to_add.append(new_trans)
+                
+                # Tally balance changes
+                if account.id not in accounts_to_update:
+                    accounts_to_update[account.id] = {'account': account, 'change': decimal.Decimal(0)}
+                accounts_to_update[account.id]['change'] += amount
+                
+                success_count += 1
+
+            # --- Atomic Database Operation ---
+            if transactions_to_add:
+                db.session.add_all(transactions_to_add)
+                for data in accounts_to_update.values():
+                    data['account'].balance += data['change']
+                
+                db.session.commit()
+                flash(f"Successfully imported {success_count} transactions.", 'success')
+            
+            if errors:
+                flash("Some rows were skipped due to errors:", 'warning')
+                for error in errors[:5]:
+                    flash(error, 'danger')
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f"An unexpected error occurred: {e}", 'danger')
+            current_app.logger.error(f"CSV Import failed: {e}")
+        
+        return redirect(url_for('main.transactions'))
+
+    return render_template('import.html')
 
 # ===================================================================
 # ACCOUNT & BUDGET ROUTES

@@ -40,4 +40,4 @@ def clear_transactions_command():
 if __name__ == '__main__':
     # We do not run migrations automatically on startup.
     # This is a manual step via the manage.sh script.
-    app.run(debug=True, host='0.0.0.0', use_reloader=False)
+    app.run(debug=True, host='0.0.0.0', use_reloader=True)
