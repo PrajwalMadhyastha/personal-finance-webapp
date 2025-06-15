@@ -18,7 +18,7 @@ from .models import (
     transaction_categories, RecurringTransaction, ActivityLog,
     Asset, InvestmentTransaction
 )
-from sqlalchemy import func, select, or_
+from sqlalchemy import func, select, or_, text
 from sqlalchemy.orm import selectinload
 import calendar
 from dateutil.relativedelta import relativedelta
@@ -30,6 +30,7 @@ import codecs
 # ===================================================================
 main_bp = Blueprint('main', __name__)
 
+
 # ===================================================================
 # HELPER FUNCTION
 # ===================================================================
@@ -38,6 +39,22 @@ def log_activity(description):
     if current_user.is_authenticated:
         log_entry = ActivityLog(user_id=current_user.id, description=description)
         db.session.add(log_entry)
+
+@main_bp.route('/healthz')
+def healthz():
+    """
+    A simple health check endpoint. It checks for a valid database connection.
+    Returns a 200 OK if healthy, and a 503 Service Unavailable if not.
+    """
+    try:
+        # Perform a very simple, fast query to check DB connectivity.
+        db.session.execute(text('SELECT 1'))
+        return jsonify({"status": "ok"}), 200
+    except Exception as e:
+        # If any exception occurs, it means the app is not healthy.
+        # Log the error for debugging purposes.
+        current_app.logger.error(f"Health check failed: {e}")
+        return jsonify({"status": "database_error"}), 503
 
 # ===================================================================
 # CORE & DASHBOARD ROUTES
