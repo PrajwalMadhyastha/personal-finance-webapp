@@ -18,11 +18,12 @@ from .models import (
     transaction_categories, RecurringTransaction, ActivityLog,
     Asset, InvestmentTransaction
 )
-from sqlalchemy import func, select, or_, text
+from sqlalchemy import func, select, or_, text, case
 from sqlalchemy.orm import selectinload
 import calendar
 from dateutil.relativedelta import relativedelta
 from .forms import TransactionForm
+from .services import get_stock_price
 import codecs
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from werkzeug.utils import secure_filename
@@ -950,48 +951,79 @@ def upload_avatar():
 def portfolio():
     """
     Renders the main investment portfolio page, showing a summary of
-    current holdings and a history of all transactions.
+    current holdings with live market values and a history of all transactions.
     """
-    # 1. Fetch all investment transactions for the current user
-    investments_stmt = select(InvestmentTransaction).options(
-        selectinload(InvestmentTransaction.asset) # Eagerly load the related asset data
-    ).filter_by(
-        user_id=current_user.id
-    ).order_by(InvestmentTransaction.transaction_date.desc())
-    
-    all_transactions = db.session.execute(investments_stmt).scalars().all()
+    holdings_query = db.session.query(
+        Asset.ticker_symbol,
+        func.sum(
+            case(
+                (InvestmentTransaction.transaction_type == 'buy', InvestmentTransaction.quantity),
+                (InvestmentTransaction.transaction_type == 'sell', -InvestmentTransaction.quantity),
+                else_=0
+            )
+        ).label('total_quantity'),
+        func.sum(
+            case(
+                (InvestmentTransaction.transaction_type == 'buy', InvestmentTransaction.quantity * InvestmentTransaction.price_per_unit),
+                else_=0
+            )
+        ).label('total_cost')
+    ).join(
+        Asset, InvestmentTransaction.asset_id == Asset.id
+    ).filter(
+        InvestmentTransaction.user_id == current_user.id
+    ).group_by(
+        Asset.ticker_symbol
+    ).all()
 
-    # 2. Process transactions to calculate current holdings
-    # We'll use a dictionary to hold the summary for each asset
-    holdings = defaultdict(lambda: {'quantity': 0, 'asset': None})
-
-    for trans in all_transactions:
-        asset_id = trans.asset_id
-        holdings[asset_id]['asset'] = trans.asset # Store the asset object
-        
-        if trans.transaction_type == 'buy':
-            holdings[asset_id]['quantity'] += trans.quantity
-        elif trans.transaction_type == 'sell':
-            holdings[asset_id]['quantity'] -= trans.quantity
-
-    # 3. Convert the holdings dictionary into a list for the template,
-    #    filtering out any assets where the final quantity is zero or less.
-    portfolio_summary = [
-        {
-            'ticker': data['asset'].ticker_symbol,
-            'name': data['asset'].name,
-            'quantity': data['quantity']
-        }
-        for asset_id, data in holdings.items() if data['quantity'] > 0
-    ]
+    holdings_data = []
+    # --- FIX: Use decimal.Decimal ---
+    grand_total_cost = decimal.Decimal('0.0')
+    grand_total_market_value = decimal.Decimal('0.0')
     
-    # Sort the summary alphabetically by ticker
-    portfolio_summary.sort(key=lambda x: x['ticker'])
-    
+    from . import services
+    if hasattr(services, 'price_cache'):
+        services.price_cache.clear()
+
+    for holding in holdings_query:
+        if holding.total_quantity > 0:
+            ticker = holding.ticker_symbol 
+            
+            # --- FIX: Use decimal.Decimal ---
+            total_cost = holding.total_cost or decimal.Decimal('0.0')
+            average_cost_per_share = (total_cost / holding.total_quantity) if holding.total_quantity > 0 else decimal.Decimal('0.0')
+            
+            current_price_float = get_stock_price(ticker)
+            
+            market_value = None
+            if current_price_float is not None:
+                # --- FIX: Use decimal.Decimal ---
+                current_price_decimal = decimal.Decimal(str(current_price_float))
+                market_value = holding.total_quantity * current_price_decimal
+                grand_total_market_value += market_value
+
+            holdings_data.append({
+                'ticker': ticker,
+                'quantity': holding.total_quantity,
+                'total_cost': total_cost,
+                'average_cost': average_cost_per_share,
+                'current_price': current_price_float,
+                'market_value': market_value,
+            })
+            grand_total_cost += total_cost
+
+    transaction_history = db.session.execute(
+        select(InvestmentTransaction).options(selectinload(InvestmentTransaction.asset))
+        .filter_by(user_id=current_user.id)
+        .order_by(InvestmentTransaction.transaction_date.desc())
+    ).scalars().all()
+
     return render_template(
         'portfolio.html', 
-        transactions=all_transactions,       # For the history table
-        portfolio_summary=portfolio_summary  # For the new summary table
+        holdings=holdings_data,
+        transactions=transaction_history,
+        grand_total_cost=grand_total_cost,
+        grand_total_market_value=grand_total_market_value
     )
 
 

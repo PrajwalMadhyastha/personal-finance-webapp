@@ -11,39 +11,83 @@
                 <p>A summary of your current holdings and transaction history.</p>
             </hgroup>
         </div>
+        <!-- FIX: Styled "Add Investment" button to match your framework -->
         <div style="text-align: right;">
-            <a href="{{ url_for('main.add_investment') }}" role="button" class="contrast">Add Transaction</a>
+            <a href="{{ url_for('main.add_investment') }}" role="button" class="contrast">Add Investment</a>
         </div>
     </header>
 
-    <!-- NEW "CURRENT HOLDINGS" SUMMARY TABLE -->
+    <!-- NEW "SUMMARY TOTALS" SECTION -->
+    <div class="grid">
+        <div>
+            <strong>Total Cost Basis</strong>
+            <p>₹{{ "%.2f"|format(grand_total_cost) }}</p>
+        </div>
+        <div>
+            <strong>Total Market Value</strong>
+            <p>₹{{ "%.2f"|format(grand_total_market_value) }}</p>
+        </div>
+    </div>
+    
+    <hr>
+
+    <!-- "CURRENT HOLDINGS" TABLE WITH LIVE DATA -->
     <h4>Current Holdings</h4>
-    {% if portfolio_summary %}
-    <table>
-        <thead>
-            <tr>
-                <th>Ticker</th>
-                <th>Asset Name</th>
-                <th style="text-align: right;">Quantity Owned</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for holding in portfolio_summary %}
-            <tr>
-                <td><strong>{{ holding.ticker }}</strong></td>
-                <td>{{ holding.name }}</td>
-                <td style="text-align: right;">{{ holding.quantity | round(8) }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    {% if holdings %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th style="text-align: right;">Quantity</th>
+                    <th style="text-align: right;">Avg. Cost/Share</th>
+                    <th style="text-align: right;">Current Price</th>
+                    <th style="text-align: right;">Market Value</th>
+                    <th style="text-align: right;">Total Gain/Loss</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for holding in holdings %}
+                <tr>
+                    <td><strong>{{ holding.ticker }}</strong></td>
+                    <!-- FIX: Quantity as an integer -->
+                    <td style="text-align: right;">{{ holding.quantity|int }}</td>
+                    <!-- FIX: Currency as Rupee -->
+                    <td style="text-align: right;">₹{{ "%.2f"|format(holding.average_cost) }}</td>
+                    <td style="text-align: right;">
+                        {% if holding.current_price is not none %}
+                            ₹{{ "%.2f"|format(holding.current_price) }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if holding.market_value is not none %}
+                            ₹{{ "%.2f"|format(holding.market_value) }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        {% if holding.market_value is not none %}
+                            {% set gain = holding.market_value - holding.total_cost %}
+                            ₹{{ "%.2f"|format(gain) }}
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p>You do not currently hold any assets.</p>
     {% endif %}
     
     <hr>
 
-    <!-- EXISTING TRANSACTION HISTORY TABLE -->
+    <!-- "TRANSACTION HISTORY" TABLE -->
     <h4>Transaction History</h4>
     {% if transactions %}
     <div style="overflow-x: auto;">
@@ -56,7 +100,7 @@
                     <th style="text-align: right;">Quantity</th>
                     <th style="text-align: right;">Price / Unit</th>
                     <th style="text-align: right;">Total Value</th>
-                    <th>Actions</th> <!-- New Column -->
+                    <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -64,20 +108,18 @@
                 <tr>
                     <td>{{ trans.transaction_date.strftime('%Y-%m-%d') }}</td>
                     <td><strong>{{ trans.asset.ticker_symbol }}</strong></td>
-                    <td class="{{ 'income' if trans.transaction_type == 'buy' else 'expense' }}">
-                        {{ trans.transaction_type|capitalize }}
-                    </td>
-                    <td style="text-align: right;">{{ trans.quantity }}</td>
+                    <td class="{{ 'income' if trans.transaction_type == 'buy' else 'expense' }}">{{ trans.transaction_type|capitalize }}</td>
+                    <!-- FIX: Quantity as an integer -->
+                    <td style="text-align: right;">{{ trans.quantity|int }}</td>
+                    <!-- FIX: Currency as Rupee -->
                     <td style="text-align: right;">₹{{ "%.2f"|format(trans.price_per_unit) }}</td>
                     <td style="text-align: right;">₹{{ "%.2f"|format(trans.quantity * trans.price_per_unit) }}</td>
                     <td>
-                        <!-- New Actions Buttons -->
+                        <!-- FIX: Styled Edit/Delete buttons to match your framework -->
                         <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                            <a href="{{ url_for('main.edit_investment_transaction', transaction_id=trans.id) }}" class="secondary outline" role="button" style="margin-bottom: 0; padding: 0.25rem 0.5rem;">Edit</a>
-                            <form action="{{ url_for('main.delete_investment_transaction', transaction_id=trans.id) }}" method="POST" style="margin-bottom: 0;">
-                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this transaction record?');" style="margin-bottom: 0; padding: 0.25rem 0.5rem;">
-                                    Delete
-                                </button>
+                            <a href="{{ url_for('main.edit_investment_transaction', transaction_id=trans.id) }}" class="secondary outline" role="button" style="margin: 0; padding: 0.25rem 0.5rem;">Edit</a>
+                            <form action="{{ url_for('main.delete_investment_transaction', transaction_id=trans.id) }}" method="POST" style="margin: 0;">
+                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this transaction record?');" style="margin: 0; padding: 0.25rem 0.5rem;">Delete</button>
                             </form>
                         </div>
                     </td>

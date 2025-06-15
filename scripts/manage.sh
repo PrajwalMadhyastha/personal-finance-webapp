@@ -18,6 +18,7 @@ usage() {
     echo -e "  ${CYAN}start-app${NC}       : Builds and starts the web application in the background."
     echo -e "  ${CYAN}stop-app${NC}        : Stops only the web application container."
     echo -e "  ${CYAN}restart-app${NC}     : Restarts the web application container."
+    echo -e "  ${CYAN}rebuild-app${NC}     : Stops the application, re-builds it and then start the Application."
     echo -e "  ${CYAN}down${NC}            : Stops and removes all containers and networks."
     echo -e "  ${CYAN}logs [service]${NC}  : Tails the logs. Service can be 'app' or 'db'. Default is 'app'."
     echo -e "  ${CYAN}shell${NC}           : Opens a bash shell inside the running webapp container."
