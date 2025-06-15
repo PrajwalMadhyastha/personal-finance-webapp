@@ -59,32 +59,35 @@ The application requires a .env file for its configuration. A helper script is p
 # This will create a .env file from the .env.example template
 ./scripts/setup_env.sh
 ```
-Now, open the new .env file in your code editor. You must fill in the following values:
+* Now, open the new .env file in your code editor. You must fill in the following values:
 
-SECRET_KEY and TASK_SECRET_KEY: Generate two long, random strings for these. You can use openssl rand -hex 32 in your terminal to generate one.
+* SECRET_KEY and TASK_SECRET_KEY: Generate two long, random strings for these. You can use below command in your terminal to generate one.
+```bash
+openssl rand -hex 32
+```
 
-DB_SA_PASSWORD and DB_ADMIN_PASSWORD: Set these to the same complex password for the local database (e.g., Your.Strong.Password123!).
+* DB_SA_PASSWORD and DB_ADMIN_PASSWORD: Set these to the same complex password for the local database (e.g., Your.Strong.Password123!).
 
 ### 3. Start the Local Environment
 The project uses a manage.sh script to orchestrate Docker Compose.
 
 #### a) Start the Database (One-time setup)
 
-First, start the standalone database container. This will be slow the first time as it downloads the SQL Server image.
+* First, start the standalone database container. This will be slow the first time as it downloads the SQL Server image.
 ```bash
 ./scripts/manage.sh start-db
 ```
-Wait a minute or two for the database to become healthy. You can check its status with docker ps.
+* Wait a minute or two for the database to become healthy. You can check its status with docker ps.
 
 #### b) Apply Database Migrations
 
-Once the database is running, you need to create all the application tables.
+* Once the database is running, you need to create all the application tables.
 ```bash
 ./scripts/manage.sh db upgrade
 ```
 #### c) Start the Application
 
-Finally, start the Flask web application container.
+* Finally, start the Flask web application container.
 ```bash
 ./scripts/manage.sh start-app
 ```
@@ -93,18 +96,18 @@ Your local development environment is now fully running! You can access the appl
 ## ☁️ Cloud Deployment & CI/CD Setup
 To enable the automated deployment pipeline for your own fork of this repository, you must configure the following secrets in your GitHub repo.
 
-Navigate to Settings > Secrets and variables > Actions and create the following Repository secrets:
+* Navigate to Settings > Secrets and variables > Actions and create the following Repository secrets:
 
-AZURE_CREDENTIALS: The JSON output from creating an Azure Service Principal with contributor rights to your resource group.
+* AZURE_CREDENTIALS: The JSON output from creating an Azure Service Principal with contributor rights to your resource group.
 ```bash
 az ad sp create-for-rbac --name "pfa-github-actions" --role contributor --scopes /subscriptions/YOUR_SUBSCRIPTION_ID/resourceGroups/YOUR_RESOURCE_GROUP_NAME --sdk-auth
 ```
-DB_ADMIN_LOGIN: The administrator username you chose for your Azure SQL Server.
+* DB_ADMIN_LOGIN: The administrator username you chose for your Azure SQL Server.
 
-DB_ADMIN_PASSWORD: The administrator password for your Azure SQL Server.
+* DB_ADMIN_PASSWORD: The administrator password for your Azure SQL Server.
 
-FLASK_SECRET_KEY: A long, random string for your live application's secret key (openssl rand -hex 32).
+* FLASK_SECRET_KEY: A long, random string for your live application's secret key (openssl rand -hex 32).
 
-RECURRING_JOB_SECRET: A separate, long, random string used to authorize the scheduled job (openssl rand -hex 32).
+* RECURRING_JOB_SECRET: A separate, long, random string used to authorize the scheduled job (openssl rand -hex 32).
 
-GHCR_PAT: A GitHub Personal Access Token (classic) with write:packages scope. This is needed for Terraform to configure access to the GitHub Container Registry.
+* GHCR_PAT: A GitHub Personal Access Token (classic) with write:packages scope. This is needed for Terraform to configure access to the GitHub Container Registry.
