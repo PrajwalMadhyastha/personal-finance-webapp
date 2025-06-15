@@ -3,7 +3,7 @@
 resource "azurerm_container_app_job" "migration_job" {
   name                         = "pfa-migration-job"
   location                     = module.resource_group.location
-  resource_group_name        = module.resource_group.name
+  resource_group_name          = module.resource_group.name
   container_app_environment_id = azurerm_container_app_environment.aca_env.id
 
   replica_timeout_in_seconds = 300 # Give the job 5 minutes to complete
@@ -16,7 +16,7 @@ resource "azurerm_container_app_job" "migration_job" {
   template {
     container {
       name    = "migration-container"
-      image   = "ghcr.io/prajwalmadhyastha/personal-finance-webapp:latest" # Use a placeholder image initially
+      image   = var.docker_image_to_deploy
       cpu     = 0.25
       memory  = "0.5Gi"
       command = ["flask", "db", "upgrade"] # The exact command to run
@@ -31,11 +31,11 @@ resource "azurerm_container_app_job" "migration_job" {
         secret_name = "recurring-job-secret"
       }
       env {
-        name        = "DB_SERVER"
+        name  = "DB_SERVER"
         value = azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name
       }
       env {
-        name        = "DB_NAME"
+        name  = "DB_NAME"
         value = azurerm_mssql_database.pfa_db_free.name
       }
       env {
