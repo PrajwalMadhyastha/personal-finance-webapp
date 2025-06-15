@@ -29,6 +29,8 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 from werkzeug.utils import secure_filename
 import mimetypes
 import os
+from functools import wraps
+from flask import abort
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -60,6 +62,14 @@ def healthz():
         # Log the error for debugging purposes.
         current_app.logger.error(f"Health check failed: {e}")
         return jsonify({"status": "database_error"}), 503
+    
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin:
+            abort(403) # Forbidden error
+        return f(*args, **kwargs)
+    return decorated_function
 
 # ===================================================================
 # CORE & DASHBOARD ROUTES
@@ -69,6 +79,15 @@ def index():
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
     return render_template('index.html')
+
+@main_bp.route('/admin')
+@login_required
+@admin_required
+def admin_dashboard():
+    """Displays an admin-only dashboard with a list of all users."""
+    stmt = select(User).order_by(User.username)
+    all_users = db.session.execute(stmt).scalars().all()
+    return render_template('admin_dashboard.html', users=all_users)
 
 @main_bp.route('/dashboard')
 @login_required

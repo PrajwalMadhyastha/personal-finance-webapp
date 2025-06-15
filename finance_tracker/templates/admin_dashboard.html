@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h2>Admin Dashboard</h2>
+            <p>A view of all registered users in the system.</p>
+        </hgroup>
+    </header>
+
+    <h4>All Registered Users</h4>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th style="text-align: center;">Is Admin?</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td>{{ user.email }}</td>
+                    <td style="text-align: center;">
+                        {% if user.is_admin %}
+                            <span style="color: green;">Yes ✅</span>
+                        {% else %}
+                            <span>No</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</article>
+{% endblock %}

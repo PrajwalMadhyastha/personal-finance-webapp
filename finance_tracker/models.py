@@ -28,6 +28,7 @@ class User(db.Model, UserMixin):
     recurring_transactions = db.relationship('RecurringTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
     investment_transactions = db.relationship('InvestmentTransaction', backref='user', lazy=True, cascade="all, delete-orphan")
     activity_logs = db.relationship('ActivityLog', backref='user', lazy=True, cascade="all, delete-orphan")
+    is_admin = db.Column(db.Boolean, nullable=False, default=False)
 
 class Account(db.Model):
     __tablename__ = 'account'
