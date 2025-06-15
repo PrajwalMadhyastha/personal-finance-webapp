@@ -825,6 +825,59 @@ def portfolio():
 # API & REPORTING ROUTES
 # ===================================================================
 
+@main_bp.route('/calendar')
+@login_required
+def calendar_view():
+    """Displays a monthly calendar highlighting days with transactions."""
+    now_utc = datetime.now(timezone.utc)
+    
+    # Get month/year from query params, defaulting to the current month/year
+    try:
+        year = request.args.get('year', default=now_utc.year, type=int)
+        month = request.args.get('month', default=now_utc.month, type=int)
+        # Ensure month is valid
+        if not (1 <= month <= 12):
+            month = now_utc.month
+    except (TypeError, ValueError):
+        year = now_utc.year
+        month = now_utc.month
+
+    # 1. Get the calendar structure for the month (a list of weeks)
+    cal = calendar.Calendar()
+    month_calendar = cal.monthdayscalendar(year, month)
+
+    # 2. Get a set of all days in this month that have transactions
+    stmt = select(
+        func.extract('day', Transaction.transaction_date)
+    ).where(
+        Transaction.user_id == current_user.id,
+        func.extract('month', Transaction.transaction_date) == month,
+        func.extract('year', Transaction.transaction_date) == year
+    ).distinct()
+    
+    active_days = {day[0] for day in db.session.execute(stmt).all()}
+
+    # 3. Calculate previous and next month for navigation links
+    current_date = datetime(year, month, 1)
+    prev_month_date = current_date - relativedelta(months=1)
+    next_month_date = current_date + relativedelta(months=1)
+
+    prev_month_link = url_for('main.calendar_view', year=prev_month_date.year, month=prev_month_date.month)
+    next_month_link = url_for('main.calendar_view', year=next_month_date.year, month=next_month_date.month)
+
+    return render_template(
+        'calendar.html',
+        month_calendar=month_calendar,
+        active_days=active_days,
+        # Pass all the necessary date info to the template
+        month_name=calendar.month_name[month],
+        current_year=year,
+        prev_month_link=url_for('main.calendar_view', year=prev_month_date.year, month=prev_month_date.month),
+        next_month_link=url_for('main.calendar_view', year=next_month_date.year, month=next_month_date.month),
+        prev_month_name=prev_month_date.strftime('%B'),
+        next_month_name=next_month_date.strftime('%B')
+    )
+
 @main_bp.route('/reports')
 @login_required
 def reports():

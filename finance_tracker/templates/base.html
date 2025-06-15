@@ -34,6 +34,19 @@
           background-color: var(--color, var(--pico-primary)); /* Default to blue */
           transition: width 0.5s ease-in-out, background-color 0.2s ease;
       }
+      .calendar th, .calendar td {
+          text-align: center;
+          padding: 1rem;
+      }
+      .calendar td.empty {
+          background-color: var(--pico-muted-background-color);
+      }
+      .calendar td.active {
+          background-color: var(--pico-primary-background);
+          color: var(--pico-primary-inverse);
+          font-weight: bold;
+          border-radius: var(--pico-border-radius);
+      }
     </style>
 </head>
 <body>
@@ -52,6 +65,7 @@
                     <li><a href="{{ url_for('main.budgets') }}">Budgets</a></li>
                     <li><a href="{{ url_for('main.manage_categories') }}">Categories</a></li>
                     <li><a href="{{ url_for('main.reports') }}">Reports</a></li>
+                    <li><a href="{{ url_for('main.calendar_view') }}">Calendar</a></li>
                     <li><a href="{{ url_for('main.portfolio') }}">Portfolio</a></li>
                     <li><a href="{{ url_for('main.profile') }}">Profile</a></li>
                     <li><a href="{{ url_for('main.logout') }}">Logout</a></li>

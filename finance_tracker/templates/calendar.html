@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Transaction Calendar{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h2>Transaction Calendar</h2>
+            <p>Days with financial activity are highlighted.</p>
+        </hgroup>
+    </header>
+
+    <div class="grid">
+        <div style="text-align: left;">
+            <a href="{{ prev_month_link }}" role="button" class="secondary outline">‹ {{ prev_month_name }}</a>
+        </div>
+        <h4 style="text-align: center;">{{ month_name }} {{ current_year }}</h4>
+        <div style="text-align: right;">
+            <a href="{{ next_month_link }}" role="button" class="secondary outline">{{ next_month_name }} ›</a>
+        </div>
+    </div>
+
+    <figure>
+        <table class="calendar">
+            <thead>
+                <tr>
+                    <th>Mon</th>
+                    <th>Tue</th>
+                    <th>Wed</th>
+                    <th>Thu</th>
+                    <th>Fri</th>
+                    <th>Sat</th>
+                    <th>Sun</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for week in month_calendar %}
+                <tr>
+                    {% for day in week %}
+                    <td class="{% if day in active_days %}active{% elif day == 0 %}empty{% endif %}">
+                        {% if day != 0 %}
+                            {{ day }}
+                        {% endif %}
+                    </td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </figure>
+</article>
+{% endblock %}
