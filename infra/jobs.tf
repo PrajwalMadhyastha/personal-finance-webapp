@@ -27,6 +27,11 @@ resource "azurerm_container_app_job" "migration_job" {
         secret_name = "flask-secret-key"
       }
       env {
+        # --- THIS IS THE MISSING LINE THAT FIXES THE PROBLEM ---
+        name  = "FLASK_APP"
+        value = "run.py"
+      }
+      env {
         name        = "TASK_SECRET_KEY"
         secret_name = "recurring-job-secret"
       }
