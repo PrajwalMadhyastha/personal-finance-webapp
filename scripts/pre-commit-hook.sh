@@ -10,7 +10,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 KEYWORDS_PATTERN="FIXME|DEBUG"
-# Add more exceptions here if needed, e.g., "logging.DEBUG|another.exception"
+# A pattern of script filenames to exclude from the check
+SCRIPTS_TO_EXCLUDE="pre-commit-hook.sh|project_audit.sh"
+# Known legitimate uses of the keywords to exclude
 EXCEPTIONS_PATTERN="logging.DEBUG"
 
 echo -e "${YELLOW}--- Running Pre-Commit Hook: Checking for forbidden words ---${NC}"
@@ -18,7 +20,7 @@ echo -e "${YELLOW}--- Running Pre-Commit Hook: Checking for forbidden words ---$
 # --- Main Logic ---
 # Find files with forbidden words, then filter out the known exceptions.
 FORBIDDEN_FILES=$(git diff --cached --name-only --diff-filter=ACM \
-    | grep -v "scripts/pre-commit-hook.sh" \
+    | grep -v -E "scripts/($SCRIPTS_TO_EXCLUDE)" \
     | xargs --no-run-if-empty grep --with-filename --line-number -E "$KEYWORDS_PATTERN" \
     | grep -v -E "$EXCEPTIONS_PATTERN" || true)
 

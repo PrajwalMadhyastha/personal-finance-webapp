@@ -1,16 +1,31 @@
-.venv/
+# .gitignore
+
+# Byte-compiled / optimized / C extensions
 __pycache__/
 *.pyc
-.DS_Store
-.env
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Local instance folder
+instance/
 *.db
-# Terraform
+*.sqlite3
+
+# Terraform files
 .terraform/
-*.tfstate
-*.tfstate.*
-crash.log
+terraform.tfstate
+terraform.tfstate.backup
 *.tfvars
-*.tfplan
-# Terraform variable files
-*.tfvars
-*.tfvars.json
+
+# IDE / OS files
+.vscode/
+.idea/
+.DS_Store
+
+# Local environment file
+.env
