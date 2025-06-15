@@ -1,142 +1,83 @@
-# .github/workflows/ci.yml
-
-name: CI/CD - Build, Push, and Deploy Application
+name: CI/CD - Lint, Test, Migrate, and Deploy
 
 on:
   workflow_dispatch:
 
 jobs:
-
   # =======================================================
-  # JOB 1: Run the test suite
+  # JOB 1: LINT & TEST
   # =======================================================
   lint-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: 'Checkout Repository'
         uses: actions/checkout@v4
-
       - name: 'Set up Python'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Use the same version as your Dockerfile
-
+          python-version: '3.11'
       - name: 'Install Dependencies'
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
+        run: pip install -r requirements.txt
       - name: 'Lint with flake8'
-        run: |
-          # The --exit-zero flag will report errors but will not fail the job.
-          flake8 finance_tracker/ --count --show-source --statistics --exit-zero
+        run: flake8 . --count --exit-zero --max-complexity=10 --max-line-length=119 --statistics
+      - name: 'Run Tests with Pytest'
+        run: pytest
 
-      - name: 'Run Tests with Coverage'
-        run: |
-          pytest --cov=finance_tracker --cov-report=html
-
-      - name: 'Upload Coverage Report'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: htmlcov/
   # =======================================================
-  # JOB 2: Build the Docker image and push it to GHCR
+  # JOB 2: BUILD DOCKER IMAGE
   # =======================================================
   build-and-push:
     runs-on: ubuntu-latest
     needs: lint-and-test
     permissions:
       contents: read
-      packages: write # Permission for GITHUB_TOKEN to write packages
-    
+      packages: write
     outputs:
       image_tag: ${{ steps.docker_build.outputs.image_id }}
       owner_lc: ${{ steps.repo_owner_lc.outputs.name }}
-
     steps:
       - name: 'Checkout Repository'
         uses: actions/checkout@v4
-
       - name: 'Set repository owner to lowercase'
         id: repo_owner_lc
         run: echo "name=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
-
       - name: 'Log in to GitHub Container Registry'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ steps.repo_owner_lc.outputs.name }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
       - name: 'Build and Push Docker Image'
         id: docker_build
         run: |
           LOWERCASE_REPO_NAME=$(echo '${{ github.event.repository.name }}' | tr '[:upper:]' '[:lower:]')
           IMAGE_NAME="ghcr.io/${{ steps.repo_owner_lc.outputs.name }}/${LOWERCASE_REPO_NAME}"
-          # The tag is the unique git commit SHA, which is a best practice
           IMAGE_TAG="${IMAGE_NAME}:${{ github.sha }}"
-          
-          echo "Building and pushing: ${IMAGE_TAG}"
           docker build -t ${IMAGE_TAG} .
           docker push ${IMAGE_TAG}
-          
-          # Set the full image name as a job output for the next job
           echo "image_id=${IMAGE_TAG}" >> $GITHUB_OUTPUT
 
   # =======================================================
-  # JOB 3: Migrate Production Database (NEW JOB)
+  # JOB 3: RUN DATABASE MIGRATIONS
   # =======================================================
-  deploy-infra:
+  run-migration-job:
+    name: Run Database Migrations
     runs-on: ubuntu-latest
     needs: build-and-push
-    # This 'if' condition is key. It only runs for infra changes.
-    if: needs.build-and-push.result == 'success'
+    environment: production
     steps:
-      - name: 'Checkout Repository'
-        uses: actions/checkout@v4
-      - name: 'Check for infrastructure file changes'
-        id: path_filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            infra:
-              - 'infra/**'
       - name: 'Log in to Azure'
-        if: steps.path_filter.outputs.infra == 'true'
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: 'Setup Terraform'
-        if: steps.path_filter.outputs.infra == 'true'
-        uses: hashicorp/setup-terraform@v2
-      - name: 'Run Terraform Apply'
-        if: steps.path_filter.outputs.infra == 'true'
-        env:
-          TF_VAR_db_admin_login: ${{ secrets.DB_ADMIN_LOGIN }}
-          TF_VAR_db_admin_password: ${{ secrets.DB_ADMIN_PASSWORD }}
-          TF_VAR_github_pat: ${{ secrets.GHCR_PAT }}
-          TF_VAR_github_username: ${{ needs.build-and-push.outputs.owner_lc }}
-          TF_VAR_flask_secret_key: ${{ secrets.FLASK_SECRET_KEY }}
-          TF_VAR_task_secret_key: ${{ secrets.RECURRING_JOB_SECRET }}
-        run: |
-          echo "Infrastructure changes detected. Running terraform apply..."
-          cd infra
-          terraform init
-          terraform apply -auto-approve -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}"
 
-  # =======================================================
-  # JOB 4: Deploy to Azure with Conditional Logic
-  # =======================================================
-  migrate-and-deploy-app:
-    runs-on: ubuntu-latest
-    needs: [build-and-push, deploy-infra] 
-    if: always() && needs.deploy-infra.result != 'failure' 
-    steps:
-      - name: 'Log in to Azure'
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: 'Update Migration Job with Latest Image'
+        run: |
+          echo "Updating the migration job with image: ${{ needs.build-and-push.outputs.image_tag }}"
+          az containerapp job update \
+            --name pfa-migration-job \
+            --resource-group personal-finance-app-rg \
+            --image ${{ needs.build-and-push.outputs.image_tag }}
 
       - name: 'Start the Database Migration Job'
         id: start_job
@@ -146,37 +87,47 @@ jobs:
             --name pfa-migration-job \
             --resource-group personal-finance-app-rg \
             --query "name" -o tsv)
+          echo "Started job execution: $EXECUTION_NAME"
           echo "execution_name=$EXECUTION_NAME" >> $GITHUB_OUTPUT
 
       - name: 'Wait for migration job to complete'
         run: |
           echo "Waiting for job execution ${{ steps.start_job.outputs.execution_name }}..."
-          # This command polls Azure until the job is no longer 'Running'
-          az containerapp job execution wait \
-            --name pfa-migration-job \
-            --resource-group personal-finance-app-rg \
-            --job-execution-name ${{ steps.start_job.outputs.execution_name }} \
-            --timeout 300
-          
-          echo "Checking final job status..."
-          STATUS=$(az containerapp job execution show \
-            --name pfa-migration-job \
-            --resource-group personal-finance-app-rg \
-            --job-execution-name ${{ steps.start_job.outputs.execution_name }} \
-            --query "properties.status" -o tsv)
-
-          if [[ "$STATUS" != "Succeeded" ]]; then
-            echo "::error::Migration job failed with status: $STATUS"
-            echo "Fetching logs from the failed job execution..."
-            # --- THIS IS THE CORRECTED COMMAND ---
-            az containerapp job logs \
+          end_time=$((SECONDS+300))
+          while [ $SECONDS -lt $end_time ]; do
+            STATUS=$(az containerapp job execution show \
               --name pfa-migration-job \
               --resource-group personal-finance-app-rg \
-              --job-execution-name ${{ steps.start_job.outputs.execution_name }}
-            exit 1
-          fi
-          echo "::notice::Migration job completed successfully."
+              --job-execution-name ${{ steps.start_job.outputs.execution_name }} \
+              --query "properties.status" -o tsv)
+            echo "Current job status: $STATUS"
+            if [[ "$STATUS" == "Succeeded" ]]; then
+              echo "::notice::Migration job completed successfully."
+              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --job-execution-name ${{ steps.start_job.outputs.execution_name }}
+              exit 0
+            elif [[ "$STATUS" == "Failed" || "$STATUS" == "Canceled" ]]; then
+              echo "::error::Migration job failed with status: $STATUS"
+              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --job-execution-name ${{ steps.start_job.outputs.execution_name }}
+              exit 1
+            fi
+            sleep 20
+          done
+          echo "::error::Timeout: Migration job did not complete within 5 minutes."
+          exit 1
 
+  # =======================================================
+  # JOB 4: DEPLOY MAIN APPLICATION
+  # =======================================================
+  deploy-app:
+    name: Deploy Main Application
+    runs-on: ubuntu-latest
+    needs: run-migration-job
+    environment: production
+    steps:
+      - name: 'Log in to Azure'
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
       - name: 'Deploy Application Update'
         run: |
           echo "Deploying new application image to webapp..."
