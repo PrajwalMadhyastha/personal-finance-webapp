@@ -1,0 +1,69 @@
+# infra/jobs.tf
+
+resource "azurerm_container_app_job" "migration_job" {
+  name                         = "pfa-migration-job"
+  location                     = module.resource_group.location
+  resource_group_name        = module.resource_group.name
+  container_app_environment_id = azurerm_container_app_environment.aca_env.id
+
+  replica_timeout_in_seconds = 300 # Give the job 5 minutes to complete
+  replica_retry_limit        = 1
+  manual_trigger_config {
+    parallelism              = 1
+    replica_completion_count = 1
+  }
+
+  template {
+    container {
+      name    = "migration-container"
+      image   = "ghcr.io/prajwalmadhyastha/personal-finance-webapp:latest" # Use a placeholder image initially
+      cpu     = 0.25
+      memory  = "0.5Gi"
+      command = ["flask", "db", "upgrade"] # The exact command to run
+
+      # The job needs the same environment variables as the main app to connect to the DB
+      env {
+        name        = "SECRET_KEY"
+        secret_name = "flask-secret-key"
+      }
+      env {
+        name        = "TASK_SECRET_KEY"
+        secret_name = "recurring-job-secret"
+      }
+      env {
+        name        = "DB_SERVER"
+        value = azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name
+      }
+      env {
+        name        = "DB_NAME"
+        value = azurerm_mssql_database.pfa_db_free.name
+      }
+      env {
+        name        = "DB_ADMIN_LOGIN"
+        secret_name = "db-admin-login"
+      }
+      env {
+        name        = "DB_ADMIN_PASSWORD"
+        secret_name = "db-password"
+      }
+    }
+  }
+
+  # The job needs the same secrets as the main app
+  secret {
+    name  = "flask-secret-key"
+    value = var.flask_secret_key
+  }
+  secret {
+    name  = "recurring-job-secret"
+    value = var.task_secret_key
+  }
+  secret {
+    name  = "db-admin-login"
+    value = var.db_admin_login
+  }
+  secret {
+    name  = "db-password"
+    value = var.db_admin_password
+  }
+}
