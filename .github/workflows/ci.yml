@@ -114,7 +114,7 @@ jobs:
               az containerapp job logs show \
                 --name pfa-migration-job \
                 --resource-group personal-finance-app-rg \
-                --execution ${{ steps.start_job.outputs.execution_name }}
+                --execution ${{ steps.start_job.outputs.execution_name }} \
                 --container migration-container
               exit 1
             fi
