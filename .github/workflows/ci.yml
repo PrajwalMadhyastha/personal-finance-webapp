@@ -105,16 +105,16 @@ jobs:
             if [[ "$STATUS" == "Succeeded" ]]; then
               echo "::notice::Migration job completed successfully."
               # Also get logs on success for history
-              az containerapp job logs --name pfa-migration-job --resource-group personal-finance-app-rg --execution-name ${{ steps.start_job.outputs.execution_name }}
+              az containerapp job logs show --name pfa-migration-job --resource-group personal-finance-app-rg --execution ${{ steps.start_job.outputs.execution_name }}
               exit 0
             elif [[ "$STATUS" == "Failed" || "$STATUS" == "Canceled" ]]; then
               echo "::error::Migration job failed with status: $STATUS"
               echo "Fetching logs from the failed job execution..."
               # --- THIS IS THE CORRECTED COMMAND ---
-              az containerapp job logs \
+              az containerapp job logs show \
                 --name pfa-migration-job \
                 --resource-group personal-finance-app-rg \
-                --execution-name ${{ steps.start_job.outputs.execution_name }}
+                --execution ${{ steps.start_job.outputs.execution_name }}
               exit 1
             fi
             sleep 20
