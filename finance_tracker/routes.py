@@ -24,6 +24,10 @@ import calendar
 from dateutil.relativedelta import relativedelta
 from .forms import TransactionForm
 import codecs
+from azure.storage.blob import BlobServiceClient
+from werkzeug.utils import secure_filename
+import mimetypes
+import os
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -892,6 +896,50 @@ def tag_detail(tag_name):
     transactions = sorted(tag.transactions, key=lambda t: t.transaction_date, reverse=True)
     
     return render_template('tag_detail.html', tag_name=tag.name, transactions=transactions)
+
+@main_bp.route('/profile/avatar/upload', methods=['POST'])
+@login_required
+def upload_avatar():
+    if 'avatar' not in request.files:
+        flash('No file part in the request.', 'danger')
+        return redirect(url_for('main.profile'))
+    
+    file = request.files['avatar']
+    if file.filename == '':
+        flash('No file selected.', 'warning')
+        return redirect(url_for('main.profile'))
+
+    if file:
+        try:
+            connection_string = current_app.config.get("AZURE_STORAGE_CONNECTION_STRING")
+            if not connection_string:
+                flash('Storage service is not configured.', 'danger')
+                return redirect(url_for('main.profile'))
+
+            # Create a unique filename based on user ID to prevent conflicts
+            filename = f"avatar_{current_user.id}{os.path.splitext(file.filename)[1]}"
+            
+            # Connect to the blob service
+            blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+            container_client = blob_service_client.get_container_client("avatars")
+
+            # Upload the file
+            blob_client = container_client.get_blob_client(filename)
+            content_type = mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+            blob_client.upload_blob(file.read(), blob_type="BlockBlob", overwrite=True, content_settings={'content_type': content_type})
+            
+            # Update the user's avatar URL
+            current_user.avatar_url = blob_client.url
+            log_activity("Updated profile picture.")
+            db.session.commit()
+
+            flash('Profile picture updated successfully!', 'success')
+
+        except Exception as e:
+            current_app.logger.error(f"Avatar upload failed: {e}")
+            flash('There was an error uploading your file.', 'danger')
+
+    return redirect(url_for('main.profile'))
 
 @main_bp.route('/portfolio')
 @login_required

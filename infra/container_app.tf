@@ -23,6 +23,10 @@ resource "azurerm_container_app" "webapp" {
     name  = "recurring-job-secret"
     value = var.task_secret_key
   }
+  secret {
+    name  = "storage-connection-string"
+    value = azurerm_storage_account.pfa_storage.primary_connection_string
+  }
 
   ingress {
     external_enabled = true
@@ -33,7 +37,7 @@ resource "azurerm_container_app" "webapp" {
       latest_revision = true
     }
   }
-  
+
   registry {
     server               = "ghcr.io"
     username             = var.github_username
@@ -57,12 +61,12 @@ resource "azurerm_container_app" "webapp" {
         value = azurerm_mssql_database.pfa_db_free.name
       }
       env {
-        name        = "DB_ADMIN_LOGIN"
+        name = "DB_ADMIN_LOGIN"
         # FIXED: Securely references the secret instead of passing plain text.
         secret_name = "db-admin-login"
       }
       env {
-        name        = "DB_ADMIN_PASSWORD"
+        name = "DB_ADMIN_PASSWORD"
         # This was already correct, referencing a secret.
         secret_name = "db-password"
       }
@@ -74,6 +78,10 @@ resource "azurerm_container_app" "webapp" {
       env {
         name        = "TASK_SECRET_KEY"
         secret_name = "recurring-job-secret"
+      }
+      env {
+        name        = "AZURE_STORAGE_CONNECTION_STRING"
+        secret_name = "storage-connection-string"
       }
     }
   }

@@ -19,7 +19,7 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(150), nullable=False)
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
-
+    avatar_url = db.Column(db.String(255), nullable=True)
     transactions = db.relationship('Transaction', backref='user', lazy=True, cascade="all, delete-orphan")
     accounts = db.relationship('Account', backref='user', lazy=True, cascade="all, delete-orphan")
     categories = db.relationship('Category', backref='user', lazy=True, cascade="all, delete-orphan")
