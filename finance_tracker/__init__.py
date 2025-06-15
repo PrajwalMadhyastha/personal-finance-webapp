@@ -51,7 +51,8 @@ def create_app(test_config=None):
             SECRET_KEY=secret_key,
             SQLALCHEMY_DATABASE_URI=db_uri,
             SQLALCHEMY_TRACK_MODIFICATIONS=False,
-            TASK_SECRET_KEY=os.getenv('TASK_SECRET_KEY')
+            TASK_SECRET_KEY=os.getenv('TASK_SECRET_KEY'),
+            AZURE_STORAGE_CONNECTION_STRING=os.getenv('AZURE_STORAGE_CONNECTION_STRING')
         )
     else:
         # Load the test config if passed in
