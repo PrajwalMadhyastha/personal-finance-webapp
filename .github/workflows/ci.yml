@@ -92,9 +92,15 @@ jobs:
           # This single apply command updates BOTH the main webapp image AND the migration job image
           terraform apply -auto-approve -var="docker_image_to_deploy=${{ needs.build-and-push.outputs.image_tag }}"
 
-      - name: 'Start the Database Migration Job'
+      - name: 'Update and Start the Database Migration Job'
         id: start_job
         run: |
+          echo "Updating the migration job with the latest image..."
+          az containerapp job update \
+            --name pfa-migration-job \
+            --resource-group personal-finance-app-rg \
+            --image ${{ needs.build-and-push.outputs.image_tag }}
+          
           echo "Starting the migration job..."
           EXECUTION_NAME=$(az containerapp job start \
             --name pfa-migration-job \
