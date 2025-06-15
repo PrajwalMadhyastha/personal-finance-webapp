@@ -7,9 +7,33 @@
     <header>
         <hgroup>
             <h2>Admin Dashboard</h2>
-            <p>A view of all registered users in the system.</p>
+            <p>A high-level overview of system activity and users.</p>
         </hgroup>
     </header>
+
+    <!-- NEW: System Statistics Section -->
+    <h4>System Statistics</h4>
+    <div class="grid">
+        <div>
+            <strong>Total Users</strong>
+            <p>{{ user_count }}</p>
+        </div>
+        <div>
+            <strong>Total Transactions</strong>
+            <p>{{ transaction_count }}</p>
+        </div>
+        <div>
+            <strong>Total Income Recorded</strong>
+            <p>₹{{ "%.2f"|format(total_income) }}</p>
+        </div>
+        <div>
+            <strong>Total Expenses Recorded</strong>
+            <p>₹{{ "%.2f"|format(total_expenses) }}</p>
+        </div>
+    </div>
+    
+    <hr>
+    <!-- END: System Statistics Section -->
 
     <h4>All Registered Users</h4>
     <div style="overflow-x: auto;">

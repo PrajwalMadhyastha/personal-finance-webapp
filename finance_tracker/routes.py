@@ -84,10 +84,42 @@ def index():
 @login_required
 @admin_required
 def admin_dashboard():
-    """Displays an admin-only dashboard with a list of all users."""
+    """
+    Displays an admin-only dashboard with system-wide statistics
+    and a list of all registered users.
+    """
+    # --- NEW: System-wide Statistics ---
+
+    # Get total counts for users and transactions
+    user_count = db.session.query(func.count(User.id)).scalar()
+    transaction_count = db.session.query(func.count(Transaction.id)).scalar()
+
+    # Get the sum of all income and expense transactions in a single query
+    totals_query = db.session.query(
+        Transaction.transaction_type,
+        func.sum(Transaction.amount)
+    ).group_by(Transaction.transaction_type).all()
+
+    # Process the results into a simple dictionary
+    # Initialize with 0 to handle cases where there are no transactions of a certain type
+    system_totals = {'income': decimal.Decimal('0.0'), 'expense': decimal.Decimal('0.0')}
+    for trans_type, total_amount in totals_query:
+        if trans_type in system_totals:
+            system_totals[trans_type] = total_amount
+
+    # --- Existing logic to get all users ---
     stmt = select(User).order_by(User.username)
     all_users = db.session.execute(stmt).scalars().all()
-    return render_template('admin_dashboard.html', users=all_users)
+
+    # --- Pass all data to the template ---
+    return render_template(
+        'admin_dashboard.html',
+        users=all_users,
+        user_count=user_count,
+        transaction_count=transaction_count,
+        total_income=system_totals['income'],
+        total_expenses=system_totals['expense']
+    )
 
 @main_bp.route('/dashboard')
 @login_required
