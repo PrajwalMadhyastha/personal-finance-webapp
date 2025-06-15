@@ -19,17 +19,12 @@ resource "azurerm_container_app_job" "migration_job" {
       image   = var.docker_image_to_deploy
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["flask", "db", "upgrade"] # The exact command to run
+      command = ["flask", "--app", "run:app", "db", "upgrade"]
 
       # The job needs the same environment variables as the main app to connect to the DB
       env {
         name        = "SECRET_KEY"
         secret_name = "flask-secret-key"
-      }
-      env {
-        # --- THIS IS THE MISSING LINE THAT FIXES THE PROBLEM ---
-        name  = "FLASK_APP"
-        value = "run.py"
       }
       env {
         name        = "TASK_SECRET_KEY"
