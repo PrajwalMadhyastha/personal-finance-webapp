@@ -23,6 +23,8 @@ usage() {
     echo -e "  ${CYAN}logs [service]${NC}  : Tails the logs. Service can be 'app' or 'db'. Default is 'app'."
     echo -e "  ${CYAN}shell${NC}           : Opens a bash shell inside the running webapp container."
     echo -e "  ${CYAN}db <cmd> [msg]${NC}  : Runs a database command (migrate, upgrade, etc.)."
+    echo -e "  ${CYAN}promote <email>${NC}  : Promotes the specified user to an admin."
+    echo -e "  ${CYAN}demote <email>${NC}   : Demotes the specified admin to a regular user."
     exit 1
 }
 
@@ -110,6 +112,26 @@ case "$1" in
         $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
 
         echo -e "${GREEN}Database command finished.${NC}"
+        ;;
+    promote)
+        EMAIL="${2:-}"
+        if [ -z "$EMAIL" ]; then
+            echo -e "${RED}Error: 'promote' command requires a user email.${NC}"
+            usage
+        fi
+        echo -e "${CYAN}--- Promoting user: $EMAIL ---${NC}"
+        # Execute the python script inside the 'webapp' service container
+        $COMPOSER exec webapp python scripts/set_admin_status.py "$EMAIL" true
+        ;;
+
+    demote)
+        EMAIL="${2:-}"
+        if [ -z "$EMAIL" ]; then
+            echo -e "${RED}Error: 'demote' command requires a user email.${NC}"
+            usage
+        fi
+        echo -e "${CYAN}--- Demoting user: $EMAIL ---${NC}"
+        $COMPOSER exec webapp python scripts/set_admin_status.py "$EMAIL" false
         ;;
     *)
         echo -e "${RED}Error: Unknown command '$1'${NC}"
