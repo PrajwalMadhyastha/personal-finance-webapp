@@ -90,14 +90,16 @@ def test_investment_authorization(client, test_app):
     """
     GIVEN two users, where User 2 tries to access User 1's data
     WHEN User 2 attempts to view or delete User 1's investment transaction
-    THEN check that the application returns a 404 Not Found error
+    THEN the application should return a 403 Forbidden error
     """
     with test_app.app_context():
+        # --- FIX: Log out any pre-existing user to guarantee a clean slate ---
+        client.get('/logout', follow_redirects=True)
+
         # --- GIVEN ---
-        # Create two separate users
-        user_one = User(username='user_one', email='one@test.com', password_hash='...')
+        # Create two separate users with proper password hashes
+        user_one = User(username='user_one', email='one@test.com', password_hash=bcrypt.generate_password_hash('pw1').decode('utf-8'))
         user_two = User(username='user_two', email='two@test.com', password_hash=bcrypt.generate_password_hash('pw2').decode('utf-8'))
-        
         asset = Asset(name="Secure Stock", ticker_symbol="SEC", asset_type="Stock")
         
         # Create a transaction belonging ONLY to user_one
@@ -110,16 +112,15 @@ def test_investment_authorization(client, test_app):
 
         # --- WHEN ---
         # Log in as user_two
-        client.post('/login', data={'email': 'two@test.com', 'password': 'pw2'})
+        login_response = client.post('/login', data={'email': 'two@test.com', 'password': 'pw2'})
+        # Good practice to assert the login was successful
+        assert login_response.status_code == 302 # 302 is a successful redirect
 
-        # User two attempts to access the edit page for user one's transaction
+        # User two attempts to access user one's data
         edit_response = client.get(f'/portfolio/edit/{trans_of_user_one.id}')
-        
-        # User two attempts to delete user one's transaction
         delete_response = client.post(f'/portfolio/delete/{trans_of_user_one.id}')
 
         # --- THEN ---
-        # Assert that both attempts were met with a 404 Not Found error,
-        # because the route logic should not find a transaction matching that ID *and* the logged-in user.
-        assert edit_response.status_code == 404
-        assert delete_response.status_code == 404
+        # Assert that both attempts were forbidden
+        assert edit_response.status_code == 403
+        assert delete_response.status_code == 403
