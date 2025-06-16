@@ -1,3 +1,6 @@
+import pytest
+
+@pytest.mark.feature
 def test_login_page_loads(client):
     """
     GIVEN a Flask application configured for testing
@@ -9,7 +12,7 @@ def test_login_page_loads(client):
     assert b"Log In" in response.data
     assert b"Need an account?" in response.data
 
-
+@pytest.mark.feature
 def test_dashboard_redirects_when_not_logged_in(client):
     """
     GIVEN a Flask application configured for testing
@@ -22,7 +25,7 @@ def test_dashboard_redirects_when_not_logged_in(client):
     assert b"Please log in to access this page." in response.data
     assert b"Log In" in response.data
 
-
+@pytest.mark.feature
 def test_dashboard_loads_when_logged_in(auth_client):
     """
     GIVEN an authenticated client

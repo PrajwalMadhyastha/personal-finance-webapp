@@ -5,10 +5,11 @@ from finance_tracker.models import User, Asset, InvestmentTransaction, ActivityL
 from sqlalchemy import select
 import decimal
 from datetime import datetime
-
+import pytest
 # NOTE: These tests rely on the 'test_app' and 'auth_client' fixtures
 #       that are defined in your 'tests/conftest.py' file.
 
+@pytest.mark.feature
 def test_edit_investment_transaction(auth_client, test_app):
     """
     GIVEN an authenticated user with an existing investment transaction
@@ -49,7 +50,7 @@ def test_edit_investment_transaction(auth_client, test_app):
         assert updated_trans.price_per_unit == decimal.Decimal('105.50')
         assert updated_trans.transaction_date.strftime('%Y-%m-%d') == '2025-01-10'
 
-
+@pytest.mark.feature
 def test_delete_investment_transaction(auth_client, test_app):
     """
     GIVEN an authenticated user with an existing investment transaction
@@ -85,7 +86,7 @@ def test_delete_investment_transaction(auth_client, test_app):
         assert latest_log is not None
         assert "Deleted sell of 5.00000000 DEL from portfolio" in latest_log.description
 
-
+@pytest.mark.feature
 def test_investment_authorization(client, test_app):
     """
     GIVEN two users, where User 2 tries to access User 1's data

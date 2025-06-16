@@ -9,7 +9,7 @@ from finance_tracker import bcrypt
 # ===============================================
 # Your First Test Functions
 # ===============================================
-
+@pytest.mark.unit
 def test_new_user(test_app):
     """
     GIVEN a User model
@@ -29,7 +29,7 @@ def test_new_user(test_app):
         assert user.email == 'test@example.com'
         assert user.password_hash is not None
 
-
+@pytest.mark.unit
 def test_password_hashing(test_app):
     """
     GIVEN a User model

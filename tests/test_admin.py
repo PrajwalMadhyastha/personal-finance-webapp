@@ -1,5 +1,7 @@
 # tests/test_admin.py
+import pytest
 
+@pytest.mark.feature
 def test_admin_access_denied_for_regular_user(auth_client):
     """
     GIVEN a logged-in regular user
@@ -9,6 +11,7 @@ def test_admin_access_denied_for_regular_user(auth_client):
     response = auth_client.get('/admin')
     assert response.status_code == 403
 
+@pytest.mark.feature
 def test_admin_access_granted(logged_in_admin_client):
     """
     GIVEN a client logged in as an admin user
@@ -19,6 +22,7 @@ def test_admin_access_granted(logged_in_admin_client):
     assert response.status_code == 200
     assert b"Admin Dashboard" in response.data
 
+@pytest.mark.feature
 def test_admin_link_not_visible_for_regular_user(auth_client):
     """
     GIVEN a logged-in regular user
@@ -29,6 +33,7 @@ def test_admin_link_not_visible_for_regular_user(auth_client):
     assert response.status_code == 200
     assert b'href="/admin"' not in response.data
 
+@pytest.mark.feature
 def test_admin_link_is_visible_for_admin_user(logged_in_admin_client):
     """
     GIVEN a client logged in as an admin user

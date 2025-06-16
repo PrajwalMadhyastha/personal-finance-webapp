@@ -3,7 +3,9 @@ from finance_tracker.models import ActivityLog, Account, Category, Transaction
 from finance_tracker import db
 from sqlalchemy import select
 import decimal
+import pytest
 
+@pytest.mark.feature
 def test_add_transaction_creates_activity_log(auth_client, test_app):
     """
     GIVEN an authenticated user
