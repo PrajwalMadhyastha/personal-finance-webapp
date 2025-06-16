@@ -13,12 +13,6 @@ resource "azurerm_container_app_job" "migration_job" {
     replica_completion_count = 1
   }
 
-  # We only need one secret now: the DB password
-  secret {
-    name  = "db-password"
-    value = var.db_admin_password
-  }
-
   template {
     container {
       name   = "migration-container"
@@ -26,11 +20,12 @@ resource "azurerm_container_app_job" "migration_job" {
       cpu    = 0.25
       memory = "0.5Gi"
 
-      # This is the new, robust command. It constructs the full URI and passes it.
+      # This is the corrected command.
+      # It directly uses the input variables and the 'urlencode' function.
       command = [
         "python",
         "scripts/run_migrations.py",
-        "mssql+pyodbc://${var.db_admin_login}:${secret.db-password}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
+        "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
       ]
     }
   }
