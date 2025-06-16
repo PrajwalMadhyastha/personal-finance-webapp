@@ -2,23 +2,20 @@ import pytest
 from finance_tracker import create_app, db
 from finance_tracker.models import User
 from finance_tracker import bcrypt
+from config import TestingConfig 
 
 @pytest.fixture(scope='module')
 def test_app():
     """
-    A pytest fixture to set up and tear down a test Flask application.
-    This creates an in-memory SQLite database for clean testing.
+    A pytest fixture to set up a test Flask application using the
+    'testing' configuration (in-memory SQLite database).
     """
-    app = create_app({
-        'TESTING': True,
-        'SQLALCHEMY_DATABASE_URI': 'sqlite:///:memory:',
-        'WTF_CSRF_ENABLED': False,
-        'SECRET_KEY': 'test-secret-key'
-    })
+    # Create the app instance using the 'testing' config name
+    app = create_app('testing')
     
     with app.app_context():
         db.create_all()
-        yield app  # The test session runs here
+        yield app
         db.drop_all()
 
 @pytest.fixture(scope='module')

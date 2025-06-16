@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import urllib
 import logging
 from flask_login import LoginManager
+from config import config_by_name
 
 load_dotenv()
 
@@ -21,60 +22,29 @@ login_manager = LoginManager()
 login_manager.login_view = 'main.login'
 login_manager.login_message_category = 'info'
 
-def create_app(test_config=None):
+def create_app(config_name='development'):
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__, instance_relative_config=True)
 
-    if test_config is None:
-        # Load the real configuration from environment variables
-        db_server = os.getenv('DB_SERVER')
-        db_name = os.getenv('DB_NAME')
-        db_admin_login = os.getenv('DB_ADMIN_LOGIN')
-        db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
-        secret_key = os.getenv('SECRET_KEY')
+    # Load configuration from the config.py file
+    config_object = config_by_name.get(config_name)
+    app.config.from_object(config_object)
 
-        if not all([db_server, db_name, db_admin_login, db_admin_password, secret_key]):
-            raise ValueError("One or more required environment variables are not set.")
-            
-        password_safe = urllib.parse.quote_plus(db_admin_password)
-        driver_name = 'ODBC Driver 18 for SQL Server'
-        
-        # --- THIS IS THE CORRECTED LINE ---
-        # The Timeout parameter must be part of the query string arguments after the '?'.
-        db_uri = (
-            f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?"
-            f"driver={urllib.parse.quote_plus(driver_name)}"
-            f"&TrustServerCertificate=yes"  # <-- THIS IS THE FIX
-        )
-        
-        app.config.from_mapping(
-            SECRET_KEY=secret_key,
-            SQLALCHEMY_DATABASE_URI=db_uri,
-            SQLALCHEMY_TRACK_MODIFICATIONS=False,
-            TASK_SECRET_KEY=os.getenv('TASK_SECRET_KEY'),
-            AZURE_STORAGE_CONNECTION_STRING=os.getenv('AZURE_STORAGE_CONNECTION_STRING')
-        )
-    else:
-        # Load the test config if passed in
-        app.config.from_mapping(test_config)
-
-    # --- Initialize extensions with the app ---
+    # Initialize extensions with the app
     db.init_app(app)
     metrics.init_app(app)
     bcrypt.init_app(app)
-
     from . import models
     migrate.init_app(app, db)
     login_manager.init_app(app)
 
-    # --- Configure logging ---
+    # Configure logging
     app.logger.setLevel(logging.INFO)
-    app.logger.info("Personal Finance App startup complete.")
+    app.logger.info(f"Personal Finance App starting up with '{config_name}' config.")
 
-    # --- Register blueprints ---
+    # Register blueprints
     from .routes import main_bp
     app.register_blueprint(main_bp)
-
     from .api_routes import api_bp
     app.register_blueprint(api_bp)
 
