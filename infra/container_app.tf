@@ -53,27 +53,16 @@ resource "azurerm_container_app" "webapp" {
 
       # --- THIS ENTIRE ENV BLOCK IS NOW CORRECT AND CONSISTENT ---
       env {
-        name  = "DB_SERVER"
-        value = azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name
+        name  = "DATABASE_URL"
+        value = "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
       }
       env {
-        name  = "DB_NAME"
-        value = azurerm_mssql_database.pfa_db_free.name
+        name  = "FLASK_APP"
+        value = "run:app"
       }
       env {
-        name = "DB_ADMIN_LOGIN"
-        # FIXED: Securely references the secret instead of passing plain text.
-        secret_name = "db-admin-login"
-      }
-      env {
-        name = "DB_ADMIN_PASSWORD"
-        # This was already correct, referencing a secret.
-        secret_name = "db-password"
-      }
-      env {
-        # You may also want a secret for this in the future
-        name  = "SECRET_KEY"
-        value = var.flask_secret_key
+        name        = "SECRET_KEY"
+        secret_name = "flask-secret-key" # Assuming you have a secret named this
       }
       env {
         name        = "TASK_SECRET_KEY"

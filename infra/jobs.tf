@@ -28,7 +28,7 @@ resource "azurerm_container_app_job" "migration_job" {
         value = "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
       }
       env {
-        name = "FLASK_APP"
+        name  = "FLASK_APP"
         value = "run:app"
       }
     }
