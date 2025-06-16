@@ -23,27 +23,27 @@ resource "azurerm_container_app_job" "migration_job" {
 
       # The job needs the same environment variables as the main app to connect to the DB
       env {
-        name        = "SECRET_KEY"
+        name        = "FLASK_APP"
+        value       = "run:app" # Tells flask which app object to use
+      }
+      env {
+        name        = "SECRET_KEY" # This is good to have for consistency
         secret_name = "flask-secret-key"
       }
       env {
-        name        = "TASK_SECRET_KEY"
-        secret_name = "recurring-job-secret"
+        name        = "DB_HOST" # CORRECTED NAME
+        value       = azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name
       }
       env {
-        name  = "DB_SERVER"
-        value = azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name
+        name        = "DB_NAME" # This was correct
+        value       = azurerm_mssql_database.pfa_db_free.name
       }
       env {
-        name  = "DB_NAME"
-        value = azurerm_mssql_database.pfa_db_free.name
-      }
-      env {
-        name        = "DB_ADMIN_LOGIN"
+        name        = "DB_USER" # CORRECTED NAME
         secret_name = "db-admin-login"
       }
       env {
-        name        = "DB_ADMIN_PASSWORD"
+        name        = "DB_PASSWORD" # CORRECTED NAME
         secret_name = "db-password"
       }
     }
