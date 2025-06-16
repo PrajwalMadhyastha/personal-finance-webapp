@@ -19,7 +19,8 @@ resource "azurerm_container_app_job" "migration_job" {
       image   = var.docker_image_to_deploy
       cpu     = 0.25
       memory  = "0.5Gi"
-      command = ["flask", "--app", "run:app", "db", "upgrade"]
+      command = ["sh", "-c", "printenv | sort"]
+      #command = ["flask", "--app", "run:app", "db", "upgrade"]
 
       # The job needs the same environment variables as the main app to connect to the DB
       env {
