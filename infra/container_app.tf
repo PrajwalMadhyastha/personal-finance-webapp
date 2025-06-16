@@ -1,4 +1,4 @@
-# In infra/container_app.tf
+# infra/container_app.tf (Final Corrected Version)
 
 resource "azurerm_container_app" "webapp" {
   name                         = "pfa-webapp"
@@ -6,27 +6,26 @@ resource "azurerm_container_app" "webapp" {
   resource_group_name          = module.resource_group.name
   revision_mode                = "Single"
 
-  # This secret definition block is correct.
+  # --- SECRET DEFINITION BLOCK ---
+  # This block defines all the secrets the app can use.
+  # We must define 'flask-secret-key' and all others here.
   secret {
-    name  = "db-admin-login"
-    value = var.db_admin_login
-  }
-  secret {
-    name  = "db-password"
-    value = var.db_admin_password
-  }
-  secret {
-    name  = "ghcr-pat"
-    value = var.github_pat
+    name  = "flask-secret-key"
+    value = var.flask_secret_key
   }
   secret {
     name  = "recurring-job-secret"
     value = var.task_secret_key
   }
   secret {
+    name  = "ghcr-pat"
+    value = var.github_pat
+  }
+  secret {
     name  = "storage-connection-string"
     value = azurerm_storage_account.pfa_storage.primary_connection_string
   }
+  # --- END OF SECRET DEFINITION BLOCK ---
 
   ingress {
     external_enabled = true
@@ -51,7 +50,8 @@ resource "azurerm_container_app" "webapp" {
       cpu    = 0.25
       memory = "0.5Gi"
 
-      # --- THIS ENTIRE ENV BLOCK IS NOW CORRECT AND CONSISTENT ---
+      # --- ENVIRONMENT VARIABLE BLOCK ---
+      # This block correctly uses the secrets defined above.
       env {
         name  = "DATABASE_URL"
         value = "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
@@ -62,7 +62,7 @@ resource "azurerm_container_app" "webapp" {
       }
       env {
         name        = "SECRET_KEY"
-        secret_name = "flask-secret-key" # Assuming you have a secret named this
+        secret_name = "flask-secret-key"
       }
       env {
         name        = "TASK_SECRET_KEY"
@@ -74,11 +74,4 @@ resource "azurerm_container_app" "webapp" {
       }
     }
   }
-}
-
-resource "azurerm_container_app_environment" "aca_env" {
-  name                       = "pfa-aca-environment"
-  location                   = module.resource_group.location
-  resource_group_name        = module.resource_group.name
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
 }
