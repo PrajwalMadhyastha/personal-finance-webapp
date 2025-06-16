@@ -9,22 +9,36 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# --- Function to load .env file reliably ---
+load_env() {
+    if [ -f .env ]; then
+        set -a
+        source ./.env
+        set +a
+    else
+        echo -e "${RED}Error: .env file not found. Please run './scripts/setup_env.sh' first.${NC}"
+        exit 1
+    fi
+}
+
 # --- USAGE FUNCTION ---
 usage() {
     echo -e "${YELLOW}Usage: $0 {command}${NC}"
     echo ""
-    echo "Commands:"
-    echo -e "  ${CYAN}start-db${NC}        : Starts only the database container in the background. (Run once)."
-    echo -e "  ${CYAN}start-app${NC}       : Builds and starts the web application in the background."
-    echo -e "  ${CYAN}stop-app${NC}        : Stops only the web application container."
+    echo "Local Environment Commands:"
+    echo -e "  ${CYAN}start-db${NC}        : Starts the database container."
+    echo -e "  ${CYAN}create-db${NC}       : Creates the application database inside the container."
+    echo -e "  ${CYAN}start-app${NC}       : Builds and starts the web application."
+    echo -e "  ${CYAN}stop-app${NC}        : Stops the web application container."
     echo -e "  ${CYAN}restart-app${NC}     : Restarts the web application container."
-    echo -e "  ${CYAN}rebuild-app${NC}     : Stops the application, re-builds it and then start the Application."
-    echo -e "  ${CYAN}down${NC}            : Stops and removes all containers and networks."
-    echo -e "  ${CYAN}logs [service]${NC}  : Tails the logs. Service can be 'app' or 'db'. Default is 'app'."
-    echo -e "  ${CYAN}shell${NC}           : Opens a bash shell inside the running webapp container."
-    echo -e "  ${CYAN}db <cmd> [msg]${NC}  : Runs a database command (migrate, upgrade, etc.)."
-    echo -e "  ${CYAN}promote <email>${NC}  : Promotes the specified user to an admin."
-    echo -e "  ${CYAN}demote <email>${NC}   : Demotes the specified admin to a regular user."
+    echo -e "  ${CYAN}down${NC}            : Stops and removes all services."
+    echo -e "  ${CYAN}logs [service]${NC}  : Tails logs. Service: 'app' or 'db'. Default: 'app'."
+    echo ""
+    echo "Management Commands:"
+    echo -e "  ${CYAN}shell${NC}           : Opens a shell inside the running webapp container."
+    echo -e "  ${CYAN}db <cmd> [msg]${NC}  : Runs a database command (migrate, upgrade)."
+    echo -e "  ${CYAN}promote <email>${NC}  : Promotes a user to an admin."
+    echo -e "  ${CYAN}demote <email>${NC}   : Demotes an admin to a regular user."
     exit 1
 }
 
@@ -33,7 +47,13 @@ if [ -z "$1" ]; then
     usage
 fi
 
-# --- Find Docker Compose command ---
+load_env
+
+if [ -z "${DB_SA_PASSWORD:-}" ] || [ -z "${DB_NAME:-}" ]; then
+    echo -e "${RED}Error: DB_SA_PASSWORD or DB_NAME is not set in your .env file.${NC}"
+    exit 1
+fi
+
 COMPOSER="docker-compose"
 if ! command -v docker-compose &> /dev/null; then
     if docker compose version &> /dev/null; then
@@ -43,75 +63,83 @@ if ! command -v docker-compose &> /dev/null; then
         exit 1
     fi
 fi
-# Change to project root to ensure docker-compose commands work
+
 cd "$(dirname "$0")/.."
 
 # --- Command Routing ---
 case "$1" in
     start-db)
-        echo -e "${GREEN}--- Starting database container in the background... ---${NC}"
+        echo -e "${GREEN}--- Starting database container... ---${NC}"
         $COMPOSER up -d db
-        echo "Database service started. It may take several minutes to become healthy."
-        echo "Check status with: docker ps"
         ;;
+    
+    create-db)
+        echo -e "${YELLOW}--- Waiting for SQL Server to be ready... ---${NC}"
+        SERVER_READY=false
+        for i in {1..30}; do
+            if $COMPOSER exec -T db /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$DB_SA_PASSWORD" -Q "SELECT 1" -C -N &> /dev/null; then
+                echo -e "\n${GREEN}SQL Server is ready.${NC}"
+                SERVER_READY=true
+                break
+            fi
+            echo -n "."
+            sleep 2
+        done
+        
+        if ! $SERVER_READY; then
+            echo -e "\n${RED}Error: SQL Server did not become ready in time.${NC}"
+            exit 1
+        fi
+        
+        echo -e "${CYAN}--- Creating database: $DB_NAME ---${NC}"
+        $COMPOSER exec -T db /opt/mssql-tools18/bin/sqlcmd \
+            -S localhost -U sa -P "$DB_SA_PASSWORD" -C -N \
+            -Q "IF DB_ID(N'$DB_NAME') IS NULL CREATE DATABASE [$DB_NAME];"
+        echo -e "${GREEN}✅ Database created or already exists.${NC}"
+        ;;
+
     start-app)
-        echo -e "${GREEN}--- Building and starting webapp container... ---${NC}"
-        $COMPOSER up -d webapp
-        echo -e "${GREEN}✅ Web application is running in the background.${NC}"
-        echo -e "   -> Use './scripts/manage.sh logs' to see the output."
+        echo -e "${GREEN}--- Building and starting webapp... ---${NC}"
+        if [[ " ${@} " =~ " --build " ]]; then
+            $COMPOSER up -d --build webapp
+        else
+            $COMPOSER up -d webapp
+        fi
         ;;
     stop-app)
         echo -e "${YELLOW}--- Stopping webapp container... ---${NC}"
         $COMPOSER stop webapp
         ;;
-    restart-app) # <-- NEW COMMAND
-        echo -e "${YELLOW}--- Restarting webapp container (stopping, rebuilding, and starting)... ---${NC}"
+    restart-app)
+        echo -e "${YELLOW}--- Restarting webapp container... ---${NC}"
         $COMPOSER restart webapp
-        echo -e "${GREEN}✅ Web application restarted.${NC}"
-        ;;
-    rebuild-app)
-        echo -e "${YELLOW}--- Stopping webapp container... ---${NC}"
-        $COMPOSER stop webapp
-        echo -e "${YELLOW}--- Forcing a rebuild and restart of the webapp... ---${NC}"
-        $COMPOSER up -d --build webapp
-        echo -e "${GREEN}✅ Web application has been rebuilt and started.${NC}"
         ;;
     down)
-        echo -e "${RED}--- Stopping and removing all containers, networks, and volumes... ---${NC}"
+        echo -e "${RED}--- Stopping and removing all services... ---${NC}"
         $COMPOSER down -v
         ;;
     logs)
-        SERVICE="${2:-app}"
-        if [ "$SERVICE" == "app" ]; then
-            echo -e "${GREEN}--- Tailing webapp logs (Press Ctrl+C to stop)... ---${NC}"
-            $COMPOSER logs -f webapp
-        elif [ "$SERVICE" == "db" ]; then
-            echo -e "${GREEN}--- Tailing database logs (Press Ctrl+C to stop)... ---${NC}"
-            $COMPOSER logs -f db
-        else
-            echo -e "${RED}Unknown service '$SERVICE'. Use 'app' or 'db'.${NC}"
-        fi
+        SERVICE="${2:-webapp}"
+        echo -e "${GREEN}--- Tailing ${SERVICE} logs (Ctrl+C to stop)... ---${NC}"
+        $COMPOSER logs -f "$SERVICE"
         ;;
     shell)
         echo -e "${CYAN}--- Opening a shell inside the webapp container... ---${NC}"
         $COMPOSER exec webapp bash
         ;;
     db)
-        DB_COMMAND="${2:-}"
-        if [ -z "$DB_COMMAND" ]; then
-            echo -e "${RED}Error: 'db' command requires a subcommand.${NC}"
+        # --- THIS IS THE FIX ---
+        echo -e "${GREEN}--- Ensuring webapp container is running... ---${NC}"
+        $COMPOSER up -d webapp
+        # --- END OF FIX ---
+        
+        shift
+        if [ -z "$@" ]; then
+            echo -e "${RED}Error: 'db' command requires a subcommand (e.g., migrate, upgrade).${NC}"
             usage
         fi
-        echo -e "${CYAN}--- Running database command: flask db $DB_COMMAND ---${NC}"
-
-        # This now ensures the container is running WITHOUT forcing a rebuild.
-        echo "Ensuring webapp container is running..."
-        $COMPOSER up -d webapp
-
-        echo "Executing command..."
-        $COMPOSER exec -e FLASK_APP=run.py webapp flask db "${@:2}"
-
-        echo -e "${GREEN}Database command finished.${NC}"
+        echo -e "${CYAN}--- Running database command: flask db $@ ---${NC}"
+        $COMPOSER exec webapp flask db "$@"
         ;;
     promote)
         EMAIL="${2:-}"
@@ -120,10 +148,8 @@ case "$1" in
             usage
         fi
         echo -e "${CYAN}--- Promoting user: $EMAIL ---${NC}"
-        # Execute the python script inside the 'webapp' service container
         $COMPOSER exec webapp python scripts/set_admin_status.py "$EMAIL" true
         ;;
-
     demote)
         EMAIL="${2:-}"
         if [ -z "$EMAIL" ]; then

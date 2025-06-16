@@ -11,81 +11,60 @@
         <div style="text-align: right;">
             <form id="date-range-form">
                 <div class="grid">
-                    <div><label for="start_date">Start Date</label><input type="date" id="start_date" name="start_date"></div>
-                    <div><label for="end_date">End Date</label><input type="date" id="end_date" name="end_date"></div>
+                    <div><label for="start_date">Start Date</label><input type="date" id="start_date" name="start_date" value="{{ start_date }}"></div>
+                    <div><label for="end_date">End Date</label><input type="date" id="end_date" name="end_date" value="{{ end_date }}"></div>
                 </div>
             </form>
         </div>
     </div>
-    <hr>
+    
     <article>
         <hgroup>
             <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
-            <p>Click a card to see a detailed list of transactions.</p>
+            <p>A high-level overview of your finances for the selected period.</p>
         </hgroup>
         <div class="grid">
-            <!-- Income Card -->
-            <a href="{{ url_for('main.transactions', type='income', start_date=start_date, end_date=end_date) }}" class="card-link">
-                <article>
-                    <h5 class="pico-color-green-500">Total Income</h5>
-                    <h2>₹{{ "%.2f"|format(total_income) }}</h2>
-                </article>
+            <a href="{{ url_for('main.transactions', type='income', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
+                <article><h5>Total Income</h5><h2>₹{{ "%.2f"|format(total_income) }}</h2></article>
             </a>
-            <!-- Expenses Card -->
-            <a href="{{ url_for('main.transactions', type='expense', start_date=start_date, end_date=end_date) }}" class="card-link">
-                <article>
-                    <h5 class="pico-color-red-500">Total Expenses</h5>
-                    <h2>₹{{ "%.2f"|format(total_expenses) }}</h2>
-                </article>
+            <a href="{{ url_for('main.transactions', type='expense', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
+                <article><h5>Total Expenses</h5><h2>₹{{ "%.2f"|format(total_expenses) }}</h2></article>
             </a>
-            <!-- Net Balance Card (Not clickable) -->
             <article>
                 <h5>Net Balance</h5>
-                <h2 class="{% if net_balance >= 0 %}income{% else %}expense{% endif %}">
-                    ₹{{ "%.2f"|format(net_balance) }}
-                </h2>
+                <h2 class="{% if net_balance >= 0 %}income{% else %}expense{% endif %}">₹{{ "%.2f"|format(net_balance) }}</h2>
             </article>
         </div>
     </article>
-        <style>.card-link { text-decoration: none; }</style>
         
-        <article>
-            <hgroup>
-                <h4>This Month's Budget Progress</h4>
-                <p>Your spending progress for every category you've budgeted for this month.</p>
-            </hgroup>
-            {% if budget_progress %}
-                {% for budget in budget_progress %}
-                    <div>
-                        <label>{{ budget.category_name }}</label>
-                        <div class="progress-bar-track">
-                            <div class="progress-bar-fill" 
-                                style="--width: {{ budget.width }}%; --color: {{ budget.color }};">
-                            </div>
-                        </div>
-                        <small>
-                            ₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }} 
-                            ({{ "%.0f"|format(budget.percentage_used) }}%)
-                        </small>
-                    </div>
-                    {% if not loop.last %}<br>{% endif %}
-                {% endfor %}
-            {% else %}
-                <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
-            {% endif %}
-        </article>
+    <article>
+        <h4>This Month's Budget Progress</h4>
+        {% if budget_progress %}
+            {% for budget in budget_progress %}
+                <div>
+                    <label>{{ budget.category_name }}</label>
+                    <progress value="{{ budget.total_spent }}" max="{{ budget.budget_limit }}"></progress>
+                    <small>₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }}</small>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
+        {% endif %}
+    </article>
 
     <div class="grid">
+        <article>
+            <h4>Expense Breakdown by Category</h4>
+            <div style="height: 300px;"><canvas id="categoryChart"></canvas></div>
+        </article>
         <article>
             <h4>Daily Expense Trend</h4>
             <div style="height: 300px;"><canvas id="dailyTrendChart"></canvas></div>
         </article>
         <article>
-            <h4>Expense Breakdown by Category</h4>
-            <div style="height: 300px;">
-                <canvas id="categoryChart"></canvas>
-                <p id="no-pie-chart-data" style="text-align: center; display: none;">No expense data for this period.</p>
-            </div>
+            <!-- FIX: Changed <header> to <h4> to match other chart styles -->
+            <h4>Income vs. Expense Trend</h4>
+            <div style="height: 300px;"><canvas id="financialTrendChart"></canvas></div>
         </article>
     </div>
 
@@ -179,62 +158,85 @@
 {% block scripts %}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    let dailyTrendChart, categoryChart;
+    let categoryChart, dailyExpenseChart, financialTrendChart; // Hold all chart instances
+
     const startDateInput = document.getElementById('start_date');
     const endDateInput = document.getElementById('end_date');
 
-    const today = new Date();
-    const thirtyDaysAgo = new Date(new Date().setDate(today.getDate() - 29));
-    startDateInput.value = thirtyDaysAgo.toISOString().split('T')[0];
-    endDateInput.value = today.toISOString().split('T')[0];
-
-    function updateAllCharts() {
+    // Fetch data for the Expense Breakdown pie chart
+    async function updateCategoryChart() {
         const startDate = startDateInput.value;
         const endDate = endDateInput.value;
-        if (!startDate || !endDate) return;
-        updateTrendChart(startDate, endDate);
-        updateCategoryChart(startDate, endDate);
-    }
-
-    function updateTrendChart(startDate, endDate) {
-        const apiUrl = `{{ url_for('main.daily_expense_trend') }}?start_date=${startDate}&end_date=${endDate}`;
-        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
-        fetch(apiUrl).then(response => response.json()).then(data => {
-            if (dailyTrendChart) dailyTrendChart.destroy();
-            dailyTrendChart = new Chart(ctx, {
-                type: 'line',
-                data: { labels: data.labels, datasets: [{
-                    label: 'Daily Expenses (₹)', data: data.data,
-                    borderColor: 'rgb(255, 99, 132)', backgroundColor: 'rgba(255, 99, 132, 0.2)',
-                    fill: true, tension: 0.1
-                }]},
-                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-            });
-        });
-    }
-
-    function updateCategoryChart(startDate, endDate) {
-        const apiUrl = `{{ url_for('main.transaction_summary_api') }}?start_date=${startDate}&end_date=${endDate}`;
+        const response = await fetch(`/api/transaction-summary?start_date=${startDate}&end_date=${endDate}`);
+        const data = await response.json();
+        
+        if (categoryChart) categoryChart.destroy();
+        // FIX: Using the correct ID 'categoryChart'
         const ctx = document.getElementById('categoryChart').getContext('2d');
-        const noDataMsg = document.getElementById('no-pie-chart-data');
-        fetch(apiUrl).then(response => response.json()).then(data => {
-            if (categoryChart) categoryChart.destroy();
-            if (data.labels.length > 0) {
-                ctx.canvas.style.display = 'block'; noDataMsg.style.display = 'none';
-                categoryChart = new Chart(ctx, {
-                    type: 'pie',
-                    data: { labels: data.labels, datasets: [{
-                        data: data.data,
-                        backgroundColor: ['#ff6384','#36a2eb','#ffce56','#4bc0c0','#9966ff','#ff9f40'],
-                    }]},
-                    options: { responsive: true, maintainAspectRatio: false }
-                });
-            } else {
-                ctx.canvas.style.display = 'none'; noDataMsg.style.display = 'block';
-            }
+        categoryChart = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: data.labels,
+                datasets: [{ data: data.data, backgroundColor: ['#1095c1', '#f39c12', '#d92121', '#2ecc71', '#9b59b6'] }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } } }
         });
     }
-    
+
+    // FIX: Re-introduced the missing function for the Daily Expense Trend chart
+    async function updateDailyExpenseChart() {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        const response = await fetch(`/api/daily_expense_trend?start_date=${startDate}&end_date=${endDate}`);
+        const data = await response.json();
+
+        if (dailyExpenseChart) dailyExpenseChart.destroy();
+        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
+        dailyExpenseChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [{
+                    label: 'Daily Expenses',
+                    data: data.data,
+                    borderColor: 'rgba(217, 33, 33, 1)',
+                    tension: 0.1
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    // Fetch data for the Income vs. Expense line chart
+    async function updateFinancialTrendChart() {
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+        const response = await fetch(`/api/financial_trend?start_date=${startDate}&end_date=${endDate}`);
+        const data = await response.json();
+
+        if (financialTrendChart) financialTrendChart.destroy();
+        const ctx = document.getElementById('financialTrendChart').getContext('2d');
+        financialTrendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.labels,
+                datasets: [
+                    { label: 'Income', data: data.income_data, borderColor: 'rgba(46, 204, 113, 1)' },
+                    { label: 'Expenses', data: data.expense_data, borderColor: 'rgba(217, 33, 33, 1)' }
+                ]
+            },
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+        });
+    }
+
+    // A single function to update all charts
+    function updateAllCharts() {
+        updateCategoryChart();
+        updateDailyExpenseChart(); // Call the restored function
+        updateFinancialTrendChart();
+    }
+
+    // Event listeners and initial load
     startDateInput.addEventListener('change', updateAllCharts);
     endDateInput.addEventListener('change', updateAllCharts);
     updateAllCharts();

@@ -36,6 +36,6 @@ COPY . .
 
 # --- Final Configuration ---
 EXPOSE 5000
-CMD ["python", "run.py"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "wsgi:app"]
 
 LABEL org.opencontainers.image.source="https://github.com/prajwalmadhyastha/personal-finance-webapp"

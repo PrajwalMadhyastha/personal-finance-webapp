@@ -1482,6 +1482,62 @@ def check_email():
         return jsonify({'available': False})
     else:
         return jsonify({'available': True})
+
+@main_bp.route('/api/financial_trend')
+@login_required
+def financial_trend():
+    """
+    Provides data for a line chart comparing total daily income vs. expenses
+    over a specified date range.
+    """
+    start_date_str = request.args.get('start_date')
+    end_date_str = request.args.get('end_date')
+
+    if not start_date_str or not end_date_str:
+        return jsonify({'error': 'start_date and end_date are required'}), 400
+
+    try:
+        start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+        end_date_inclusive = datetime.combine(end_date, datetime.max.time())
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD.'}), 400
+
+    # A single, efficient query to get daily totals for both types
+    daily_totals_query = db.session.query(
+        db.func.cast(Transaction.transaction_date, db.Date),
+        Transaction.transaction_type,
+        db.func.sum(Transaction.amount)
+    ).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_date.between(start_date, end_date_inclusive)
+    ).group_by(
+        db.func.cast(Transaction.transaction_date, db.Date),
+        Transaction.transaction_type
+    ).order_by(
+        db.func.cast(Transaction.transaction_date, db.Date)
+    ).all()
+
+    # Initialize dictionaries with all dates in the range set to zero
+    date_range = [start_date + timedelta(days=d) for d in range((end_date - start_date).days + 1)]
+    income_data = {dt.strftime('%Y-%m-%d'): 0 for dt in date_range}
+    expense_data = {dt.strftime('%Y-%m-%d'): 0 for dt in date_range}
+
+    # Populate the dictionaries with data from the query
+    for date, trans_type, total in daily_totals_query:
+        date_str = date.strftime('%Y-%m-%d')
+        if trans_type == 'income':
+            income_data[date_str] = float(total)
+        elif trans_type == 'expense':
+            expense_data[date_str] = float(total)
+
+    response_data = {
+        'labels': list(income_data.keys()),
+        'income_data': list(income_data.values()),
+        'expense_data': list(expense_data.values()),
+    }
+    
+    return jsonify(response_data)
     
 @main_bp.route('/recurring', methods=['GET', 'POST'])
 @login_required
