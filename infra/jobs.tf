@@ -19,14 +19,18 @@ resource "azurerm_container_app_job" "migration_job" {
       image  = var.docker_image_to_deploy
       cpu    = 0.25
       memory = "0.5Gi"
+      # The command is now simple again.
+      command = ["flask", "db", "upgrade"]
 
-      # This is the corrected command.
-      # It directly uses the input variables and the 'urlencode' function.
-      command = [
-        "python",
-        "scripts/run_migrations.py",
-        "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
-      ]
+      # We inject ONE powerful environment variable.
+      env {
+        name  = "DATABASE_URL"
+        value = "mssql+pyodbc://${var.db_admin_login}:${urlencode(var.db_admin_password)}@${azurerm_mssql_server.pfa_sql_server.fully_qualified_domain_name}:1433/${azurerm_mssql_database.pfa_db_free.name}?driver=ODBC+Driver+18+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no&ConnectionTimeout=30"
+      }
+      env {
+        name = "FLASK_APP"
+        value = "run:app"
+      }
     }
   }
 }
