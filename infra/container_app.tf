@@ -75,3 +75,10 @@ resource "azurerm_container_app" "webapp" {
     }
   }
 }
+
+resource "azurerm_container_app_environment" "aca_env" {
+  name                       = "pfa-aca-environment"
+  location                   = module.resource_group.location
+  resource_group_name        = module.resource_group.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
+}
