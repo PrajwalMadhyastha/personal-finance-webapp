@@ -25,8 +25,11 @@ class DevelopmentConfig(Config):
     db_admin_login = os.getenv('DB_ADMIN_LOGIN')
     db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
     
-    if not all([db_server, db_name, db_admin_login, db_admin_password]):
-        raise ValueError("One or more DB environment variables are not set for development.")
+    def __init__(self):
+        super().__init__() # It's good practice to call the parent's init
+        # Now, check for the variables only when an instance is created
+        if not all([os.getenv('DB_USER'), os.getenv('DB_PASSWORD'), os.getenv('DB_HOST'), os.getenv('DB_NAME')]):
+            raise ValueError("One or more DB environment variables are not set for development.")
     
     password_safe = urllib.parse.quote_plus(db_admin_password)
     driver_name = 'ODBC Driver 18 for SQL Server'
