@@ -1277,6 +1277,80 @@ def budget_report():
         selected_month=selected_month
     )
 
+@main_bp.route('/report/net_worth')
+@login_required
+def net_worth_report():
+    """
+    Calculates and displays the user's total net worth by combining
+    cash accounts and investment portfolio market value.
+    """
+    # --- 1. Calculate Total Cash from All Accounts ---
+    total_cash_query = db.session.query(
+        func.sum(Account.balance)
+    ).filter(Account.user_id == current_user.id).scalar()
+    total_cash = total_cash_query or decimal.Decimal('0.0')
+
+    # Get a list of all accounts for the breakdown table
+    accounts_list = db.session.execute(
+        select(Account).filter_by(user_id=current_user.id).order_by(Account.name)
+    ).scalars().all()
+
+    # --- 2. Calculate Total Investment Value (adapted from portfolio route) ---
+    holdings_query = db.session.query(
+        Asset.ticker_symbol,
+        Asset.name,
+        func.sum(
+            case(
+                (InvestmentTransaction.transaction_type == 'buy', InvestmentTransaction.quantity),
+                (InvestmentTransaction.transaction_type == 'sell', -InvestmentTransaction.quantity),
+                else_=0
+            )
+        ).label('total_quantity')
+    ).join(
+        Asset, InvestmentTransaction.asset_id == Asset.id
+    ).filter(
+        InvestmentTransaction.user_id == current_user.id
+    ).group_by(
+        Asset.ticker_symbol, Asset.name
+    ).all()
+
+    investment_details = []
+    total_investment_value = decimal.Decimal('0.0')
+
+    # Clear the API price cache for a fresh fetch
+    from . import services
+    if hasattr(services, 'price_cache'):
+        services.price_cache.clear()
+
+    for holding in holdings_query:
+        if holding.total_quantity > 0:
+            current_price_float = get_stock_price(holding.ticker_symbol)
+            market_value = decimal.Decimal('0.0')
+
+            if current_price_float is not None:
+                current_price_decimal = decimal.Decimal(str(current_price_float))
+                market_value = holding.total_quantity * current_price_decimal
+                total_investment_value += market_value
+
+            investment_details.append({
+                'ticker': holding.ticker_symbol,
+                'name': holding.name,
+                'quantity': holding.total_quantity,
+                'market_value': market_value
+            })
+
+    # --- 3. Calculate Final Net Worth ---
+    total_net_worth = total_cash + total_investment_value
+
+    return render_template(
+        'net_worth_report.html',
+        total_cash=total_cash,
+        total_investments=total_investment_value,
+        total_net_worth=total_net_worth,
+        accounts=accounts_list,
+        investments=investment_details
+    )
+
 @main_bp.route('/export-transactions')
 @login_required
 def export_transactions():

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Net Worth Report{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h2>Net Worth Report</h2>
+            <p>A snapshot of your financial position, combining all assets.</p>
+        </hgroup>
+    </header>
+
+    <!-- Summary Section -->
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h4>Total Net Worth</h4>
+        <h1 style="margin-bottom: 0.5rem;">₹{{ "%.2f"|format(total_net_worth) }}</h1>
+        <p>
+            (Cash: ₹{{ "%.2f"|format(total_cash) }} +
+            Investments: ₹{{ "%.2f"|format(total_investments) }})
+        </p>
+    </div>
+
+    <div class="grid">
+        <!-- Cash Accounts Breakdown -->
+        <section>
+            <h4>Cash & Bank Accounts</h4>
+            {% if accounts %}
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Account Name</th>
+                            <th>Type</th>
+                            <th style="text-align: right;">Balance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for account in accounts %}
+                        <tr>
+                            <td>{{ account.name }}</td>
+                            <td>{{ account.account_type }}</td>
+                            <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" style="text-align: right;">Total Cash</th>
+                            <th style="text-align: right;">₹{{ "%.2f"|format(total_cash) }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p>You have no cash accounts.</p>
+            {% endif %}
+        </section>
+
+        <!-- Investment Holdings Breakdown -->
+        <section>
+            <h4>Investment Holdings</h4>
+            {% if investments %}
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Asset (Ticker)</th>
+                            <th style="text-align: right;">Quantity</th>
+                            <th style="text-align: right;">Market Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for investment in investments %}
+                        <tr>
+                            <td>{{ investment.name }} (<strong>{{ investment.ticker }}</strong>)</td>
+                            <td style="text-align: right;">{{ investment.quantity|int }}</td>
+                            <td style="text-align: right;">
+                                {% if investment.market_value > 0 %}
+                                    ₹{{ "%.2f"|format(investment.market_value) }}
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2" style="text-align: right;">Total Investments</th>
+                            <th style="text-align: right;">₹{{ "%.2f"|format(total_investments) }}</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            {% else %}
+            <p>You have no investment holdings.</p>
+            {% endif %}
+        </section>
+    </div>
+
+</article>
+{% endblock %}
