@@ -1534,6 +1534,91 @@ def view_generated_transactions(recurring_id):
         transactions=transactions
     )
 
+@main_bp.route('/recurring/edit/<int:recurring_id>', methods=['GET', 'POST'])
+@login_required
+def edit_recurring(recurring_id):
+    rule = db.get_or_404(RecurringTransaction, recurring_id)
+    if rule.user_id != current_user.id:
+        abort(403)
+
+    if request.method == 'POST':
+        # Update the rule with form data
+        rule.description = request.form.get('description')
+        rule.amount = decimal.Decimal(request.form.get('amount'))
+        rule.transaction_type = request.form.get('transaction_type')
+        rule.recurrence_interval = request.form.get('recurrence_interval')
+        rule.start_date = datetime.strptime(request.form.get('start_date'), '%Y-%m-%d').date()
+        rule.account_id = int(request.form.get('account_id'))
+        rule.category_id = int(request.form.get('category_id')) if request.form.get('category_id') else None
+        
+        db.session.commit()
+        flash('Recurring transaction rule updated successfully!', 'success')
+        return redirect(url_for('main.recurring_transactions'))
+
+    # For a GET request, fetch data needed for the form dropdowns
+    accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars().all()
+    categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+    return render_template('edit_recurring.html', rule=rule, accounts=accounts, categories=categories)
+
+
+@main_bp.route('/recurring/delete/<int:recurring_id>', methods=['POST'])
+@login_required
+def delete_recurring(recurring_id):
+    rule = db.get_or_404(RecurringTransaction, recurring_id)
+    if rule.user_id != current_user.id:
+        abort(403)
+    
+    # The 'cascade' option on the model will handle generated transactions if set up,
+    # otherwise, we simply delete the rule itself.
+    db.session.delete(rule)
+    db.session.commit()
+    flash('Recurring transaction rule deleted successfully.', 'success')
+    return redirect(url_for('main.recurring_transactions'))
+
+
+@main_bp.route('/recurring/run/<int:recurring_id>', methods=['POST'])
+@login_required
+def run_recurring_now(recurring_id):
+    rule = db.get_or_404(RecurringTransaction, recurring_id)
+    if rule.user_id != current_user.id:
+        abort(403)
+
+    try:
+        # 1. Create the new Transaction record
+        now_utc = datetime.now(timezone.utc)
+        new_transaction = Transaction(
+            description=f"{rule.description} (Manual Run)",
+            amount=rule.amount,
+            transaction_type=rule.transaction_type,
+            transaction_date=now_utc,
+            user_id=rule.user_id,
+            account_id=rule.account_id,
+            recurring_transaction_id=rule.id
+        )
+        if rule.category:
+            new_transaction.categories.append(rule.category)
+        
+        # 2. Update the account balance
+        if rule.account:
+            if new_transaction.transaction_type == 'income':
+                rule.account.balance += new_transaction.amount
+            else:
+                rule.account.balance -= new_transaction.amount
+        
+        # 3. Update the rule's last processed date
+        rule.last_processed_date = now_utc.date()
+        
+        db.session.add(new_transaction)
+        log_activity(f"Manually ran recurring transaction: '{rule.description}'")
+        db.session.commit()
+        
+        flash('Recurring transaction generated successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Manual recurring run failed for rule {rule.id}: {e}")
+        flash('An error occurred while generating the transaction.', 'danger')
+
+    return redirect(url_for('main.recurring_transactions'))
 
 @main_bp.route('/portfolio/add', methods=['GET', 'POST'])
 @login_required

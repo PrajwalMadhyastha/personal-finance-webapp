@@ -3,105 +3,120 @@
 {% block title %}Recurring Transactions{% endblock %}
 
 {% block content %}
-<div class="grid">
-    <!-- Column 1: Form for adding a new recurring transaction -->
-    <article>
+<article>
+    <header>
         <hgroup>
-            <h2>Schedule a Recurring Transaction</h2>
-            <p>Set up automatic entries for regular income or expenses like salaries or subscriptions.</p>
+            <h2>Recurring Transactions</h2>
+            <p>Schedule transactions that occur on a regular basis.</p>
         </hgroup>
-        <form method="POST" action="{{ url_for('main.recurring_transactions') }}">
-            <label for="description">Description</label>
-            <input type="text" id="description" name="description" placeholder="e.g., Monthly Salary, Netflix Subscription" required>
+    </header>
 
+    <!-- Form to Add a New Recurring Transaction -->
+    <details>
+        <summary role="button" class="secondary outline">Add New Recurring Transaction</summary>
+        <form method="POST" action="{{ url_for('main.recurring_transactions') }}">
             <div class="grid">
-                <div>
-                    <label for="amount">Amount (₹)</label>
-                    <input type="number" step="0.01" id="amount" name="amount" required>
-                </div>
-                <div>
-                    <label for="transaction_type">Type</label>
+                <label for="description">
+                    Description
+                    <input type="text" id="description" name="description" required>
+                </label>
+                <label for="amount">
+                    Amount
+                    <input type="number" id="amount" name="amount" step="0.01" required>
+                </label>
+            </div>
+            <div class="grid">
+                <label for="transaction_type">
+                    Type
                     <select id="transaction_type" name="transaction_type" required>
                         <option value="expense">Expense</option>
                         <option value="income">Income</option>
                     </select>
-                </div>
-            </div>
-
-            <div class="grid">
-                 <div>
-                    <label for="account_id">Account</label>
-                    <select id="account_id" name="account_id" required>
-                        <option value="" disabled selected>Select an account...</option>
-                        {% for account in accounts %}
-                        <option value="{{ account.id }}">{{ account.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="category_id">Category (Optional for income)</label>
-                    <select id="category_id" name="category_id">
-                        <option value="">None</option>
-                        {% for category in categories %}
-                        <option value="{{ category.id }}">{{ category.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <div class="grid">
-                <div>
-                    <label for="recurrence_interval">Frequency</label>
+                </label>
+                <label for="recurrence_interval">
+                    Frequency
                     <select id="recurrence_interval" name="recurrence_interval" required>
                         <option value="daily">Daily</option>
                         <option value="weekly">Weekly</option>
-                        <option value="monthly" selected>Monthly</option>
+                        <option value="monthly">Monthly</option>
                         <option value="yearly">Yearly</option>
                     </select>
-                </div>
-                 <div>
-                    <label for="start_date">Start Date</label>
+                </label>
+                <label for="start_date">
+                    Start Date
                     <input type="date" id="start_date" name="start_date" required>
-                </div>
+                </label>
+            </div>
+            <div class="grid">
+                <label for="account_id">
+                    Account
+                    <select id="account_id" name="account_id" required>
+                        {% for account in accounts %}
+                            <option value="{{ account.id }}">{{ account.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label for="category_id">
+                    Category (Optional)
+                    <select id="category_id" name="category_id">
+                        <option value="">-- None --</option>
+                        {% for category in categories %}
+                            <option value="{{ category.id }}">{{ category.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
             </div>
             <button type="submit">Schedule Transaction</button>
         </form>
-    </article>
+    </details>
 
-    <!-- Column 2: Section to display existing recurring transactions -->
-    <article>
-        <h2>Your Scheduled Transactions</h2>
-        {% if recurring_list %}
+    <hr>
+
+    <!-- List of Existing Recurring Transactions -->
+    <h4>Scheduled Rules</h4>
+    {% if recurring_list %}
+    <div style="overflow-x: auto;">
         <table>
             <thead>
                 <tr>
                     <th>Description</th>
                     <th>Amount</th>
+                    <th>Type</th>
                     <th>Frequency</th>
-                    <th>Next Due Date</th>
-                    <th>Actions</th> <!-- New Column -->
+                    <th>Next Due</th>
+                    <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in recurring_list %}
+                {% for rule in recurring_list %}
                 <tr>
-                    <td>{{ item.description }}</td>
-                    <td class="{{ item.transaction_type }}">
-                        {% if item.transaction_type == 'income' %}+{% else %}-{% endif %}
-                        ₹{{ "%.2f"|format(item.amount) }}
-                    </td>
-                    <td>{{ item.recurrence_interval|capitalize }}</td>
-                    <td>{{ item.next_due_date.strftime('%Y-%m-%d') }}</td>
+                    <td><a href="{{ url_for('main.view_generated_transactions', recurring_id=rule.id) }}">{{ rule.description }}</a></td>
+                    <td>₹{{ "%.2f"|format(rule.amount) }}</td>
+                    <td class="{{ 'expense' if rule.transaction_type == 'expense' else 'income' }}">{{ rule.transaction_type|capitalize }}</td>
+                    <td>{{ rule.recurrence_interval|capitalize }}</td>
+                    <td>{{ rule.next_due_date.strftime('%Y-%m-%d') }}</td>
                     <td>
-                        <a href="{{ url_for('main.view_generated_transactions', recurring_id=item.id) }}" role="button" class="outline">View Generated</a>
+                        <!-- NEW: Action Buttons -->
+                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                            <!-- "Run Now" Button -->
+                            <form action="{{ url_for('main.run_recurring_now', recurring_id=rule.id) }}" method="POST" style="margin: 0;">
+                                <button type="submit" class="secondary" style="margin: 0; padding: 0.25rem 0.5rem;">Run Now</button>
+                            </form>
+                            <!-- "Edit" Link -->
+                            <a href="{{ url_for('main.edit_recurring', recurring_id=rule.id) }}" class="secondary outline" role="button" style="margin: 0; padding: 0.25rem 0.5rem;">Edit</a>
+                            <!-- "Delete" Button -->
+                            <form action="{{ url_for('main.delete_recurring', recurring_id=rule.id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('Are you sure you want to delete this rule? This cannot be undone.');">
+                                <button type="submit" class="contrast outline" style="margin: 0; padding: 0.25rem 0.5rem;">Delete</button>
+                            </form>
+                        </div>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
-        {% else %}
-        <p>You haven't scheduled any recurring transactions yet.</p>
-        {% endif %}
-    </article>
-</div>
+    </div>
+    {% else %}
+    <p>You have no scheduled recurring transactions.</p>
+    {% endif %}
+</article>
 {% endblock %}
