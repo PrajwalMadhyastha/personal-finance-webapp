@@ -16,29 +16,26 @@ class Config:
     ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY')
 
 class DevelopmentConfig(Config):
-    """Configuration for local development."""
+    # It's fine to have static config values here, but NOT logic that uses os.getenv()
     DEBUG = True
-    
-    # --- Database Configuration from .env ---
-    db_server = os.getenv('DB_SERVER')
-    db_name = os.getenv('DB_NAME')
-    db_admin_login = os.getenv('DB_ADMIN_LOGIN')
-    db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
-    
+
     def __init__(self):
-        super().__init__() # It's good practice to call the parent's init
-        # Now, check for the variables only when an instance is created
-        if not all([os.getenv('DB_USER'), os.getenv('DB_PASSWORD'), os.getenv('DB_HOST'), os.getenv('DB_NAME')]):
+        super().__init__()
+        
+        # MOVE ALL ENVIRONMENT-DEPENDENT LOGIC INSIDE __init__
+        db_user = os.getenv('DB_USER')
+        db_password = os.getenv('DB_PASSWORD')
+        db_host = os.getenv('DB_HOST')
+        db_name = os.getenv('DB_NAME')
+
+        # First, check if the variables exist
+        if not all([db_user, db_password, db_host, db_name]):
             raise ValueError("One or more DB environment variables are not set for development.")
-    
-    password_safe = urllib.parse.quote_plus(db_admin_password)
-    driver_name = 'ODBC Driver 18 for SQL Server'
-    
-    SQLALCHEMY_DATABASE_URI = (
-        f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?"
-        f"driver={urllib.parse.quote_plus(driver_name)}"
-        f"&TrustServerCertificate=yes"
-    )
+
+        # Now, perform the parsing and construct the URI
+        password_safe = urllib.parse.quote_plus(db_password)
+        self.SQLALCHEMY_DATABASE_URI = f"mssql+pyodbc://{db_user}:{password_safe}@{db_host}:1433/{db_name}?driver=ODBC+Driver+17+for+SQL+Server"
+
 
 class TestingConfig(Config):
     """Configuration for testing."""
