@@ -24,38 +24,38 @@ def create_app(config_name='development'):
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__, instance_relative_config=True)
 
-    # Load base config (like SECRET_KEY) from the config object
+    # Load base config from the config object
     config_object = config_by_name.get(config_name)
     app.config.from_object(config_object)
 
-    # --- UNIFIED DATABASE CONFIGURATION LOGIC ---
-    # This is now the single source of truth for the database connection.
-    
-    # First, check for a single DATABASE_URL. This is used by our cloud deployment.
-    db_uri = os.getenv('DATABASE_URL')
-    
-    # If DATABASE_URL is not found, build the URI from individual .env variables
-    # for local development.
-    if not db_uri:
-        db_server = os.getenv('DB_SERVER')
-        db_name = os.getenv('DB_NAME')
-        db_admin_login = os.getenv('DB_ADMIN_LOGIN')
-        db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
-
-        if not all([db_server, db_name, db_admin_login, db_admin_password]):
-            raise ValueError("For local dev, DB_SERVER, DB_NAME, DB_ADMIN_LOGIN, and DB_ADMIN_PASSWORD must be set in .env")
+    # --- THIS IS THE CORRECTED LOGIC ---
+    # The 'testing' config already sets a 'sqlite:///' URI.
+    # We only need to build a new URI if we are NOT in testing mode.
+    if config_name != 'testing':
+        # First, check for a single DATABASE_URL (used by cloud deployments).
+        db_uri = os.getenv('DATABASE_URL')
         
-        password_safe = urllib.parse.quote_plus(db_admin_password)
-        driver_name = 'ODBC Driver 18 for SQL Server'
-        db_uri = (
-            f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?"
-            f"driver={urllib.parse.quote_plus(driver_name)}"
-            f"&TrustServerCertificate=yes"
-        )
-    
-    # Set the final, determined URI in the app's configuration.
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-    # --- END OF NEW LOGIC ---
+        # If DATABASE_URL is not found, build the URI for local development.
+        if not db_uri:
+            db_server = os.getenv('DB_SERVER')
+            db_name = os.getenv('DB_NAME')
+            db_admin_login = os.getenv('DB_ADMIN_LOGIN')
+            db_admin_password = os.getenv('DB_ADMIN_PASSWORD')
+
+            if not all([db_server, db_name, db_admin_login, db_admin_password]):
+                raise ValueError("For local dev, DB_SERVER, DB_NAME, DB_ADMIN_LOGIN, and DB_ADMIN_PASSWORD must be set in .env")
+            
+            password_safe = urllib.parse.quote_plus(db_admin_password)
+            driver_name = 'ODBC Driver 18 for SQL Server'
+            db_uri = (
+                f"mssql+pyodbc://{db_admin_login}:{password_safe}@{db_server}/{db_name}?"
+                f"driver={urllib.parse.quote_plus(driver_name)}"
+                f"&TrustServerCertificate=yes"
+            )
+        
+        # Set the final, determined URI in the app's configuration.
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+    # --- END OF CORRECTED LOGIC ---
 
     # Initialize extensions with the app
     db.init_app(app)
