@@ -3,103 +3,143 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-    <article>
-        <header class="grid">
-            <div>
-                <hgroup>
-                    <h2>Dashboard</h2>
-                    <p>Welcome back, {{ current_user.username }}!</p>
-                </hgroup>
-            </div>
-            <div style="text-align: right;">
-                <!-- Corrected Filter Form -->
-                <form id="date-range-form" method="GET" action="{{ url_for('main.dashboard') }}">
-                    <div class="grid">
-                        <label for="start_date">Start Date
-                            <input type="date" id="start_date" name="start_date" value="{{ start_date }}">
-                        </label>
-                        <label for="end_date">End Date
-                            <input type="date" id="end_date" name="end_date" value="{{ end_date }}">
-                        </label>
-                        <!-- FIX: Styled the Apply button for proper alignment -->
-                        <label for="apply_filter_btn" style="margin-bottom: -1rem;">&nbsp;
-                            <button type="submit" id="apply_filter_btn" class="contrast" style="margin: 0; padding-top: 0.75rem; padding-bottom: 0.75rem;">Apply</button>
-                        </label>
-                    </div>
-                </form>
-            </div>
-        </header>
-    </article>
-    
-    <article>
-        <hgroup>
-            <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
-            <p>A high-level overview of your finances for the selected period.</p>
-        </hgroup>
-        <div class="grid">
-            <a href="{{ url_for('main.transactions', type='income', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
-                <article><h5>Total Income</h5><h2>₹{{ "%.2f"|format(total_income) }}</h2></article>
-            </a>
-            <a href="{{ url_for('main.transactions', type='expense', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
-                <article><h5>Total Expenses</h5><h2>₹{{ "%.2f"|format(total_expenses) }}</h2></article>
-            </a>
-            <article>
-                <h5>Net Balance</h5>
-                <h2 class="{% if net_balance >= 0 %}income{% else %}expense{% endif %}">₹{{ "%.2f"|format(net_balance) }}</h2>
-            </article>
-        </div>
-    </article>
-        
-    <article>
-        <h4>This Month's Budget Progress</h4>
-        {% if budget_progress %}
-            {% for budget in budget_progress %}
-                <div>
-                    <label>{{ budget.category_name }}</label>
-                    <progress value="{{ budget.total_spent }}" max="{{ budget.budget_limit }}"></progress>
-                    <small>₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }}</small>
-                </div>
-            {% endfor %}
-        {% else %}
-            <p>You have not set any budgets for the current month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
-        {% endif %}
-    </article>
 
+<article>
     <div class="grid">
+        <td>
+            <div class="grid">
+                <div style="max-width: 90px;">
+                    {% if current_user.avatar_url %}
+                        <img src="{{ current_user.avatar_url }}" alt="Your avatar" style="width: 75px; height: 75px; border-radius: 50%; object-fit: cover;">
+                    {% else %}
+                        <img src="https://placehold.co/75x75/191e23/ffffff?text={{ current_user.username[0]|upper }}" alt="Default avatar" style="border-radius: 50%;">
+                    {% endif %}
+                </div>
+                <div>
+                    <hgroup style="margin-bottom: 0;">
+                        <h2>Welcome back, {{ current_user.username }}!</h2>
+                        <p>Here's a look at your financial dashboard.</p>
+                    </hgroup>
+                </div>
+            </div>
+        </td>
+        <td style="text-align: right;">
+            <form id="date-range-form" method="GET" action="{{ url_for('main.dashboard') }}">
+                <div class="grid">
+                    <label for="start_date">Start<input type="date" id="start_date" name="start_date" value="{{ start_date }}"></label>
+                    <label for="end_date">End<input type="date" id="end_date" name="end_date" value="{{ end_date }}"></label>
+                </div>
+                <button type="submit" class="contrast" style="margin: 0;">Apply</button>
+            </form>
+        </td>
+    </div>
+</article>
+
+<article>
+    <h4>Summary for {{ start_date }} to {{ end_date }}</h4>
+    
+    <!-- START: Corrected Summary Cards Layout -->
+    <div class="grid">
+        <!-- Income Card -->
+        <a href="{{ url_for('main.transactions', type='income', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
+            <article>
+                <div class="grid">
+                    <h5 style="margin-bottom:0;">Total Income</h5>
+                    <h2 class="income" style="text-align: right; margin-bottom:0;">₹{{ "%.2f"|format(total_income) }}</h2>
+                </div>
+            </article>
+        </a>
+        <!-- Expenses Card -->
+        <a href="{{ url_for('main.transactions', type='expense', start_date=start_date, end_date=end_date) }}" style="text-decoration: none;">
+            <article>
+                <div class="grid">
+                    <h5 style="margin-bottom:0;">Total Expenses</h5>
+                    <h2 class="expense" style="text-align: right; margin-bottom:0;">₹{{ "%.2f"|format(total_expenses) }}</h2>
+                </div>
+            </article>
+        </a>
+        <!-- Net Balance Card -->
         <article>
-            <h4>Expense Breakdown by Category</h4>
-            <div style="height: 300px;"><canvas id="categoryChart"></canvas></div>
+            <div class="grid">
+                <h5 style="margin-bottom:0;">Net Balance</h5>
+                <h2 class="{% if net_balance >= 0 %}income{% else %}expense{% endif %}" style="text-align: right; margin-bottom:0;">
+                    ₹{{ "%.2f"|format(net_balance) }}
+                </h2>
+            </div>
         </article>
+    </div>
+    <!-- END: Corrected Summary Cards Layout -->
+</article>
+        
+<div class="grid">
+    <!-- Left Column for Budgets and Activity -->
+    <section style="flex: 1; padding-left: 1rem;">
         <article>
-            <h4>Daily Expense Trend</h4>
-            <div style="height: 300px;"><canvas id="dailyTrendChart"></canvas></div>
+            <h4>This Month's Budget Progress</h4>
+            {% if budget_progress %}
+                {% for budget in budget_progress %}
+                    <div>
+                        <!-- This line displays the Category and the amount spent vs. the limit -->
+                        <label>{{ budget.category_name }}
+                            <span style="float: right;">₹{{ "%.2f"|format(budget.total_spent) }} of ₹{{ "%.2f"|format(budget.budget_limit) }}</span>
+                        </label>
+                        
+                        <!-- START: Reverted to the div-based progress bar -->
+                        <div class="progress-bar-track">
+                            <div class="progress-bar-fill" 
+                                style="--width: {{ budget.width }}%; --color: {{ budget.color }};">
+                            </div>
+                        </div>
+                        <!-- END: Reverted to the div-based progress bar -->
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p>No budgets set for this month. <a href="{{ url_for('main.budgets') }}">Set one now</a>.</p>
+            {% endif %}
         </article>
+        
+        <article>
+            <h4>Recent Activity</h4>
+            {% if activity_logs %}
+                <ul style="margin:0; padding-left: 1.2rem;">
+                    {% for log in activity_logs %}
+                        <li style="margin-bottom: 0.75rem;">
+                            {{ log.description }}<br>
+                            <small><em class="local-datetime" datetime="{{ log.timestamp | datetimeformat }}"></em></small>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No recent activity.</p>
+            {% endif %}
+        </article>
+
+    </section>
+
+    <!-- Right Column for Charts -->
+    <section style="flex: 2; padding-left: 1rem;">
         <article>
             <h4>Income vs. Expense Trend</h4>
             <div style="height: 300px;"><canvas id="financialTrendChart"></canvas></div>
         </article>
-    </div>
-
-    <hr>
-    
-    <!-- FIX: Restored the missing sections -->
-    <div class="grid">
+        <div class="grid">
+            <article>
+                <h4>Expense Breakdown</h4>
+                <div style="height: 300px;"><canvas id="categoryChart"></canvas></div>
+            </article>
+            <article>
+                <h4>Daily Expense Trend</h4>
+                <div style="height: 300px;"><canvas id="dailyTrendChart"></canvas></div>
+            </article>
+        </div>
         <article>
             <h4>Your Accounts</h4>
             {% if accounts %}
             <table>
-                <thead>
-                    <tr>
-                        <th>Account Name</th>
-                        <th>Type</th>
-                        <th style="text-align: right;">Balance</th>
-                    </tr>
-                </thead>
                 <tbody>
                     {% for account in accounts %}
                     <tr>
-                        <td><a href="{{ url_for('main.account_detail', account_id=account.id) }}">{{ account.name }}</a></td>
-                        <td>{{ account.account_type }}</td>
+                        <td><a href="{{ url_for('main.account_detail', account_id=account.id) }}">{{ account.name }}</a> <small>({{ account.account_type }})</small></td>
                         <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
                     </tr>
                     {% endfor %}
@@ -109,58 +149,45 @@
                 <p>No accounts added yet.</p>
             {% endif %}
         </article>
-        <article>
-            <h4>Recent Transactions</h4>
-            {% if transactions %}
-            <div style="overflow-x: auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Description</th>
-                            <th>Amount</th>
-                            <th>Date</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    {% for transaction in transactions %}
-                        <tr>
-                            <td>{{ transaction.description }}</td>
-                            <td class="{{ transaction.transaction_type }}" style="text-align: right;">
-                                {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
-                                ₹{{ "%.2f"|format(transaction.amount) }}
-                            </td>
-                            <td>
-                                <span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
-                                    {{ transaction.transaction_date.strftime('%b %d, %Y') }}
-                                </span>
-                            </td>
-                        </tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-            {% else %}
-                <p>No transactions recorded yet.</p>
-            {% endif %}
-        </article>
-        <article>
-            <h4>Recent Activity</h4>
-            {% if activity_logs %}
-                <ul>
-                    {% for log in activity_logs %}
-                        <li>
-                            {{ log.description }}<br>
-                            <small><em class="local-datetime" datetime="{{ log.timestamp | datetimeformat }}">
-                                {{ log.timestamp.strftime('%b %d, %Y') }}
-                            </em></small>
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>No recent activity to display.</p>
-            {% endif %}
-        </article>
+    </section>
+</div>
+
+<hr>
+
+<article>
+    <h4>Recent Transactions</h4>
+    {% if transactions %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Account</th>
+                    <th>Category</th>
+                    <th style="text-align: right;">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for transaction in transactions %}
+                <tr>
+                    <td><span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}"></span></td>
+                    <td>{{ transaction.description }}</td>
+                    <td>{{ transaction.account.name }}</td>
+                    <td>{% for cat in transaction.categories %}{{ cat.name }}{% endfor %}</td>
+                    <td class="{{ transaction.transaction_type }}" style="text-align: right;">
+                        {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
+                        ₹{{ "%.2f"|format(transaction.amount) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+    {% else %}
+        <p>No transactions recorded yet.</p>
+    {% endif %}
+</article>
 
 {% endblock %}
 

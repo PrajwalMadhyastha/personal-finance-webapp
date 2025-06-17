@@ -269,7 +269,7 @@ def dashboard():
         # Calculate the final values to be used directly in the template
         width_percent = min(percentage_used, 100)
         color_hex = "#1095c1"  # Default blue
-        if percentage_used > 100:
+        if percentage_used >= 100:
             color_hex = "#d92121"  # Red
         elif percentage_used > 85:
             color_hex = "#ffb700"  # Yellow/Amber
