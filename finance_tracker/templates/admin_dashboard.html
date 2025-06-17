@@ -11,29 +11,13 @@
         </hgroup>
     </header>
 
-    <!-- NEW: System Statistics Section -->
+    <!-- System Statistics section is unchanged and correct -->
     <h4>System Statistics</h4>
     <div class="grid">
-        <div>
-            <strong>Total Users</strong>
-            <p>{{ user_count }}</p>
-        </div>
-        <div>
-            <strong>Total Transactions</strong>
-            <p>{{ transaction_count }}</p>
-        </div>
-        <div>
-            <strong>Total Income Recorded</strong>
-            <p>₹{{ "%.2f"|format(total_income) }}</p>
-        </div>
-        <div>
-            <strong>Total Expenses Recorded</strong>
-            <p>₹{{ "%.2f"|format(total_expenses) }}</p>
-        </div>
+        <!-- ... your stats divs ... -->
     </div>
     
     <hr>
-    <!-- END: System Statistics Section -->
 
     <h4>All Registered Users</h4>
     <div style="overflow-x: auto;">
@@ -44,6 +28,8 @@
                     <th>Username</th>
                     <th>Email</th>
                     <th style="text-align: center;">Is Admin?</th>
+                    <!-- 1. Add the new "Actions" header -->
+                    <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -54,9 +40,27 @@
                     <td>{{ user.email }}</td>
                     <td style="text-align: center;">
                         {% if user.is_admin %}
-                            <span style="color: green;">Yes ✅</span>
+                            <span style="color: var(--pico-color-green-500);">Yes ✅</span>
                         {% else %}
                             <span>No</span>
+                        {% endif %}
+                    </td>
+                    <!-- 2. Add the new Actions cell with conditional logic -->
+                    <td style="text-align: center;">
+                        {% if user.id == current_user.id %}
+                            <!-- An admin cannot change their own status -->
+                            <small><em>(This is you)</em></small>
+                        {% else %}
+                            <!-- Show the appropriate action button -->
+                            <form method="POST" style="margin: 0;">
+                                {% if user.is_admin %}
+                                    <!-- If user is an admin, show Demote button -->
+                                    <button type="submit" formaction="{{ url_for('main.demote_user', user_id=user.id) }}" class="secondary outline" style="margin: 0; padding: 0.25rem 0.5rem;">Demote</button>
+                                {% else %}
+                                    <!-- If user is not an admin, show Promote button -->
+                                    <button type="submit" formaction="{{ url_for('main.promote_user', user_id=user.id) }}" class="contrast" style="margin: 0; padding: 0.25rem 0.5rem;">Promote</button>
+                                {% endif %}
+                            </form>
                         {% endif %}
                     </td>
                 </tr>

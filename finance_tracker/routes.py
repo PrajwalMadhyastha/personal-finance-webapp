@@ -123,6 +123,41 @@ def admin_dashboard():
         total_expenses=system_totals['expense']
     )
 
+@main_bp.route('/admin/user/promote/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def promote_user(user_id):
+    """Promotes a regular user to become an administrator."""
+    if user_id == current_user.id:
+        flash("You cannot change your own admin status.", "danger")
+        return redirect(url_for('main.admin_dashboard'))
+
+    user_to_promote = db.get_or_404(User, user_id)
+    user_to_promote.is_admin = True
+    db.session.commit()
+    
+    log_activity(f"Promoted user '{user_to_promote.username}' to admin.")
+    flash(f"User '{user_to_promote.username}' has been promoted to an admin.", "success")
+    return redirect(url_for('main.admin_dashboard'))
+
+
+@main_bp.route('/admin/user/demote/<int:user_id>', methods=['POST'])
+@login_required
+@admin_required
+def demote_user(user_id):
+    """Demotes an administrator back to a regular user."""
+    if user_id == current_user.id:
+        flash("You cannot change your own admin status.", "danger")
+        return redirect(url_for('main.admin_dashboard'))
+    
+    user_to_demote = db.get_or_404(User, user_id)
+    user_to_demote.is_admin = False
+    db.session.commit()
+
+    log_activity(f"Demoted admin '{user_to_demote.username}' to regular user.")
+    flash(f"User '{user_to_demote.username}' has been demoted to a regular user.", "info")
+    return redirect(url_for('main.admin_dashboard'))
+
 @main_bp.route('/dashboard')
 @login_required
 def dashboard():
@@ -531,6 +566,11 @@ def import_transactions():
                     errors.append(f"Row {row_num}: Invalid number of columns. Expected 10, got {len(row)}.")
                     continue
 
+                dr_cr = dr_cr_str.strip().upper()
+                if dr_cr not in ['DR', 'CR']:
+                    errors.append(f"Row {row_num}: DR/CR column must be 'DR' or 'CR'.")
+                    continue
+
                 # 2. Parse Date, Time, and Amount
                 try:
                     combined_datetime_str = f"{date_str.strip()} {time_str.strip()}"
@@ -541,8 +581,10 @@ def import_transactions():
                     continue
                 
                 # 3. Derive internal values from CSV strings
-                trans_type = 'expense' if dr_cr_str.strip().upper() == 'DR' else 'income'
-                affects_balance = False if trans_type == 'expense' and is_expense_str.strip().lower() == 'no' else True
+                trans_type = 'expense' if dr_cr == 'DR' else 'income'
+                affects_balance = True # Default to true
+                if trans_type == 'expense' and is_expense_str.strip().lower() == 'no':
+                    affects_balance = False
                 
                 # 4. Parse the combined Account string using Regex
                 acc_name, acc_type = None, None
@@ -1090,24 +1132,33 @@ def delete_account_permanently():
 def register():
     if current_user.is_authenticated:
         return redirect(url_for('main.dashboard'))
+    
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
         
+        # The existing checks for username and email are correct.
         if db.session.execute(select(User).filter_by(email=email)).scalar_one_or_none():
             flash('Email address already in use.', 'error')
         elif db.session.execute(select(User).filter_by(username=username)).scalar_one_or_none():
             flash('Username already taken.', 'error')
         else:
+            # --- THIS IS THE FIX ---
+            # We now generate a unique API key during registration.
             new_user = User(
-                username=username, email=email,
-                password_hash=bcrypt.generate_password_hash(password).decode('utf-8')
+                username=username,
+                email=email,
+                password_hash=bcrypt.generate_password_hash(password).decode('utf-8'),
+                api_key=secrets.token_hex(32) # Automatically generate a key
             )
+            # --- END OF FIX ---
+            
             db.session.add(new_user)
             db.session.commit()
             flash('Account created successfully! Please log in.', 'success')
             return redirect(url_for('main.login'))
+            
     return render_template('register.html')
 
 

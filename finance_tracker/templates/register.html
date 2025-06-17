@@ -12,6 +12,7 @@
         
         <label for="username">Username</label>
         <input type="text" id="username" name="username" required autocomplete="off" minlength="3">
+        <!-- This small tag is where the feedback will appear -->
         <small id="username-feedback" class="feedback-text"></small>
 
         <label for="email">Email</label>
@@ -23,20 +24,79 @@
 
         <button type="submit">Register</button>
     </form>
-     <hr>
+    <hr>
     <footer>
         Already have an account? <a href="{{ url_for('main.login') }}">Log in</a>.
     </footer>
 </article>
 {% endblock %}
 
+
 {% block scripts %}
-    <!-- Your existing validation script is perfect -->
-    {{ super() }}
+    {{ super() }} <!-- This is important! It includes scripts from base.html -->
+
+    <!-- This style block makes the "Available" / "Taken" text look good -->
     <style>
-        /* ... */
+        .feedback-text {
+            font-weight: bold;
+            display: block;
+            min-height: 1.2em;
+            margin-top: -0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .feedback-text.available {
+            color: var(--pico-color-green-500);
+        }
+        .feedback-text.taken {
+            color: var(--pico-color-red-500);
+        }
     </style>
+
+    <!-- This script powers the real-time validation -->
     <script>
-        // ...
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        function setupRealtimeValidation(inputId, feedbackId, apiUrl, queryParamName, minLength) {
+            const inputField = document.getElementById(inputId);
+            const feedbackSpan = document.getElementById(feedbackId);
+            let debounceTimer;
+
+            inputField.addEventListener('input', function() {
+                clearTimeout(debounceTimer);
+                const value = inputField.value.trim();
+                feedbackSpan.textContent = '';
+                feedbackSpan.className = 'feedback-text';
+
+                if (value.length < minLength) { return; }
+
+                debounceTimer = setTimeout(() => {
+                    feedbackSpan.textContent = 'Checking...';
+                    const fullApiUrl = `${apiUrl}?${queryParamName}=${encodeURIComponent(value)}`;
+                    
+                    fetch(fullApiUrl)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.available === true) {
+                                feedbackSpan.textContent = 'Available!';
+                                feedbackSpan.classList.add('available');
+                            } else if (data.available === false) {
+                                feedbackSpan.textContent = 'Taken';
+                                feedbackSpan.classList.add('taken');
+                            } else {
+                                feedbackSpan.textContent = '';
+                            }
+                        })
+                        .catch(error => {
+                            console.error(`Error checking ${inputId}:`, error);
+                            feedbackSpan.textContent = '';
+                        });
+                }, 500); // 500ms delay to avoid spamming the server
+            });
+        }
+
+        // Initialize the validation for both username and email fields
+        setupRealtimeValidation('username', 'username-feedback', "{{ url_for('main.check_username') }}", 'username', 3);
+        setupRealtimeValidation('email', 'email-feedback', "{{ url_for('main.check_email') }}", 'email', 5);
+    });
     </script>
 {% endblock %}

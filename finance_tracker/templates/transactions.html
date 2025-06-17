@@ -69,10 +69,11 @@
                     <th>Description</th>
                     <th>Account</th>
                     <th>Category</th>
-                    <th Expense?="text-align: center;">Status</th>
                     <th>Tags</th>
+                    <!-- 1. Corrected Header Name -->
+                    <th style="text-align: center;">Is Expense?</th>
                     <th style="text-align: right;">Amount (₹)</th>
-                    <th>Actions</th>
+                    <th style="text-align: center;">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -88,29 +89,28 @@
                         <td>{{ transaction.account.name if transaction.account else 'N/A' }}</td>
                         <!-- 4. Category -->
                         <td>{% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                        <!-- 5. Tags -->
+                        <td>{% for tag in transaction.tags %}<a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}">{{ tag.name }}</a> {% endfor %}</td>
                         
-                        <!-- 5. Status (NOW IN THE CORRECT POSITION) -->
+                        <!-- 6. Is Expense? (Correctly ordered and implemented) -->
                         <td style="text-align: center;">
                             {% if transaction.transaction_type == 'expense' %}
                                 {% if transaction.affects_balance %}
                                     <span>Yes</span>
                                 {% else %}
-                                    <span style="font-weight: bold; color: var(--pico-color-orange-500);">No</span>
+                                    <strong style="color: var(--pico-color-orange-500);">No</strong>
                                 {% endif %}
                             {% endif %}
                         </td>
                         
-                        <!-- 6. Tags (NOW IN THE CORRECT POSITION) -->
-                        <td>{% for tag in transaction.tags %}<a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}">{{ tag.name }}</a> {% endfor %}</td>
-                        
-                        <!-- 7. Amount (NOW IN THE CORRECT POSITION) -->
+                        <!-- 7. Amount -->
                         <td class="{{ transaction.transaction_type }}" style="text-align: right;">
                              {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
                              ₹{{ "%.2f"|format(transaction.amount) }}
                         </td>
                         
-                        <!-- 8. Actions (NOW IN THE CORRECT POSITION) -->
-                        <td>
+                        <!-- 8. Actions -->
+                        <td style="text-align: center;">
                             <div style="display: flex; gap: 0.5rem; justify-content: center;">
                                 <a href="{{ url_for('main.edit_transaction', transaction_id=transaction.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
                                 <form action="{{ url_for('main.delete_transaction', transaction_id=transaction.id) }}" method="POST" style="margin-bottom: 0;" onsubmit="return confirm('Are you sure?');">
