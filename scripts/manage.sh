@@ -27,6 +27,7 @@ usage() {
     echo -e "${YELLOW}Usage: $0 {command}${NC}"
     echo ""
     echo "Local Environment Commands:"
+    echo -e "  ${CYAN}init${NC}            : start-db, db upgrade, start-app"
     echo -e "  ${CYAN}start-db${NC}        : Starts the database container."
     echo -e "  ${CYAN}create-db${NC}       : Creates the application database inside the container."
     echo -e "  ${CYAN}start-app${NC}       : Builds and starts the web application."
@@ -160,6 +161,23 @@ case "$1" in
         fi
         echo -e "${CYAN}--- Demoting user: $EMAIL ---${NC}"
         $COMPOSER exec webapp python scripts/set_admin_status.py "$EMAIL" false
+        ;;
+    init)
+        echo -e "${YELLOW}--- Initializing complete local environment... ---${NC}"
+        echo -e "\n${CYAN}Step 1: Starting database service...${NC}"
+        ./scripts/manage.sh start-db
+        
+        echo -e "\n${CYAN}Step 2: Creating the database...${NC}"
+        ./scripts/manage.sh create-db
+
+        echo -e "\n${CYAN}Step 3: Applying database migrations...${NC}"
+        ./scripts/manage.sh db upgrade
+        
+        echo -e "\n${CYAN}Step 4: Building and starting the web application...${NC}"
+        ./scripts/manage.sh start-app --build
+
+        echo -e "\n${GREEN}✅ Setup complete! The application is running at http://localhost:5000${NC}"
+        echo -e "${YELLOW}Use './scripts/manage.sh logs' to see the application output.${NC}"
         ;;
     *)
         echo -e "${RED}Error: Unknown command '$1'${NC}"

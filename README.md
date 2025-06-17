@@ -1,8 +1,8 @@
 # Personal Finance Web Application
 
-<p>This is a comprehensive personal finance web application built as a long-term learning project. It provides users with tools to track income, expenses, budgets, and investments. The primary focus of the project is not just the application itself, but the modern cloud and DevOps technologies used to build, test, deploy, and manage it.</p>
+This is a comprehensive personal finance web application built as a long-term learning project. It provides users with tools to track income, expenses, budgets, and investments. The primary focus of the project is not just the application itself, but the modern cloud and DevOps technologies used to build, test, deploy, and manage it.
 
-<p>The application is fully containerized with Docker, deployed to Microsoft Azure using Infrastructure as Code (Terraform), and features a complete CI/CD pipeline with GitHub Actions for automated linting, testing, and deployment.</p>
+The application is fully containerized with Docker, deployed to Microsoft Azure using Infrastructure as Code (Terraform), and features a complete CI/CD pipeline with GitHub Actions for automated linting, testing, and deployment.
 
 ---
 
@@ -50,7 +50,7 @@ To run this project on your local machine, you will need `git` and `docker` (wit
 
 ### 1. Clone the Repository
 ```bash
-git clone [https://github.com/YourUsername/personal-finance-webapp.git](https://github.com/YourUsername/personal-finance-webapp.git)
+git clone https://github.com/YourUsername/personal-finance-webapp.git
 cd personal-finance-webapp
 ```
 ### 2. Set Up Environment Variables
