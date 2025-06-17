@@ -601,6 +601,92 @@ def import_transactions():
 
     return render_template('import.html')
 
+@main_bp.route('/api/import/validate', methods=['POST'])
+@login_required
+def validate_import_file():
+    """
+    Analyzes an uploaded CSV file for common errors and returns a
+    structured JSON report without actually importing the data.
+    """
+    if 'transaction_file' not in request.files or not request.files['transaction_file'].filename:
+        return jsonify({"error": "No file selected."}), 400
+    
+    file = request.files['transaction_file']
+    if not file.filename.endswith('.csv'):
+        return jsonify({"error": "Invalid file type. Please upload a .csv file."}), 400
+
+    validation_report = {
+        "valid_rows": [],
+        "invalid_rows": [],
+        "summary": {
+            "total_rows": 0,
+            "valid_count": 0,
+            "invalid_count": 0
+        }
+    }
+    
+    try:
+        # Pre-fetch user's data once for efficient lookups
+        user_accounts = { (acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars() }
+        # Note: We are not checking categories here, as the main import creates them automatically.
+
+        # Use a temporary stream to avoid saving the file
+        stream = codecs.iterdecode(file.stream, 'utf-8')
+        csv_reader = csv.reader(stream)
+        
+        try:
+            header = next(csv_reader) # Read/skip header
+        except StopIteration:
+            return jsonify({"error": "CSV file is empty or missing a header."}), 400
+
+        for i, row in enumerate(csv_reader):
+            row_num = i + 2 # Account for header and 0-based index
+            errors = []
+            validation_report["summary"]["total_rows"] += 1
+            
+            # 1. Check column count
+            if len(row) != 10:
+                errors.append(f"Invalid column count. Expected 10, got {len(row)}.")
+                validation_report["invalid_rows"].append({"row_number": row_num, "data": row, "errors": errors})
+                validation_report["summary"]["invalid_count"] += 1
+                continue
+            
+            date_str, time_str, desc, amount_str, trans_type, acc_name, acc_type, cats_str, tags_str, notes = row
+
+            # 2. Validate date and time format
+            try:
+                combined_datetime_str = f"{date_str.strip()} {time_str.strip()}"
+                datetime.strptime(combined_datetime_str, '%Y-%m-%d %I:%M %p')
+            except ValueError:
+                errors.append(f"Invalid date or time format. Use 'YYYY-MM-DD' and 'HH:MM AM/PM'.")
+            
+            # 3. Validate amount
+            try:
+                decimal.Decimal(amount_str)
+            except decimal.InvalidOperation:
+                errors.append(f"Amount '{amount_str}' is not a valid number.")
+
+            # 4. Validate transaction type
+            if trans_type.strip().lower() not in ['income', 'expense']:
+                errors.append(f"Invalid transaction type: '{trans_type}'. Must be 'income' or 'expense'.")
+
+            # 5. Validate that the account exists
+            if not user_accounts.get((acc_name.strip().lower(), acc_type.strip().lower())):
+                errors.append(f"Account '{acc_name}' with type '{acc_type}' not found.")
+            
+            # Finalize row validation
+            if errors:
+                validation_report["invalid_rows"].append({"row_number": row_num, "data": row, "errors": errors})
+                validation_report["summary"]["invalid_count"] += 1
+            else:
+                validation_report["valid_rows"].append({"row_number": row_num, "data": row})
+                validation_report["summary"]["valid_count"] += 1
+                
+        return jsonify(validation_report)
+
+    except Exception as e:
+        current_app.logger.error(f"CSV Validation failed: {e}")
+        return jsonify({"error": "An unexpected error occurred during file validation."}), 500
 
 # ===================================================================
 # ACCOUNT & BUDGET ROUTES
