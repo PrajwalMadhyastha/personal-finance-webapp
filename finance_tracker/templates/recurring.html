@@ -116,7 +116,11 @@
         </table>
     </div>
     {% else %}
-    <p>You have no scheduled recurring transactions.</p>
+    <div style="text-align: center; padding: 2rem; border: 1px dashed var(--muted-border-color); border-radius: var(--border-radius);">
+            <h4>No Scheduled Transactions</h4>
+            <p>You have no scheduled recurring transactions.</p>
+            <p><small>Use the "Add New" button above to create one.</small></p>
+        </div>
     {% endif %}
 </article>
 {% endblock %}

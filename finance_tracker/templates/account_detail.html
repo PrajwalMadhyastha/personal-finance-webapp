@@ -3,6 +3,13 @@
 {% block title %}{{ account.name }} Details{% endblock %}
 
 {% block content %}
+<nav aria-label="breadcrumb" class="breadcrumb">
+      <ul>
+        <li><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+        <li><a href="{{ url_for('main.accounts') }}">Accounts</a></li>
+        <li>{{ account.name }}</li>
+      </ul>
+    </nav>
 <article>
     <header class="grid">
         <div>

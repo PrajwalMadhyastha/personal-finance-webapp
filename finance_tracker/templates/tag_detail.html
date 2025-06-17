@@ -3,6 +3,13 @@
 {% block title %}Transactions for '{{ tag_name }}'{% endblock %}
 
 {% block content %}
+<nav aria-label="breadcrumb" class="breadcrumb">
+      <ul>
+        <li><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+        <li><a href="{{ url_for('main.transactions') }}">Transactions</a></li>
+        <li>Tag: {{ tag_name }}</li>
+      </ul>
+    </nav>
 <article>
     <!-- START: Added Consistent Header -->
     <header class="grid">

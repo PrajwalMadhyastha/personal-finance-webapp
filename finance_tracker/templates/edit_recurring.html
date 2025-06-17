@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Edit Recurring Transaction{% endblock %}
+{% block title %}Edit Recurring Rule{% endblock %}
 
 {% block content %}
 <article>
@@ -15,7 +15,49 @@
             <a href="{{ url_for('main.recurring_transactions') }}" role="button" class="secondary outline">‹ Back to Recurring</a>
         </div>
     </header>
+
     <form method="POST" action="{{ url_for('main.edit_recurring', recurring_id=rule.id) }}">
-        </form>
+        <div class="grid">
+            <label for="description">Description
+                <input type="text" id="description" name="description" value="{{ rule.description }}" required>
+            </label>
+            <label for="amount">Amount (₹)
+                <input type="number" id="amount" name="amount" value="{{ rule.amount }}" step="0.01" required>
+            </label>
+        </div>
+        <div class="grid">
+            <label for="transaction_type">Type
+                <select id="transaction_type" name="transaction_type" required>
+                    <option value="expense" {% if rule.transaction_type == 'expense' %}selected{% endif %}>Expense</option>
+                    <option value="income" {% if rule.transaction_type == 'income' %}selected{% endif %}>Income</option>
+                </select>
+            </label>
+            <label for="recurrence_interval">Frequency
+                <select id="recurrence_interval" name="recurrence_interval" required>
+                    <option value="daily" {% if rule.recurrence_interval == 'daily' %}selected{% endif %}>Daily</option>
+                    <option value="weekly" {% if rule.recurrence_interval == 'weekly' %}selected{% endif %}>Weekly</option>
+                    <option value="monthly" {% if rule.recurrence_interval == 'monthly' %}selected{% endif %}>Monthly</option>
+                    <option value="yearly" {% if rule.recurrence_interval == 'yearly' %}selected{% endif %}>Yearly</option>
+                </select>
+            </label>
+            <label for="start_date">Start Date
+                <input type="date" id="start_date" name="start_date" value="{{ rule.start_date.strftime('%Y-%m-%d') }}" required>
+            </label>
+        </div>
+        <div class="grid">
+            <label for="account_id">Account
+                <select id="account_id" name="account_id" required>
+                    {% for account in accounts %}<option value="{{ account.id }}" {% if account.id == rule.account_id %}selected{% endif %}>{{ account.name }}</option>{% endfor %}
+                </select>
+            </label>
+            <label for="category_id">Category (Optional)
+                <select id="category_id" name="category_id">
+                    <option value="">-- None --</option>
+                    {% for category in categories %}<option value="{{ category.id }}" {% if category.id == rule.category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}
+                </select>
+            </label>
+        </div>
+        <button type="submit">Update Rule</button>
+    </form>
 </article>
 {% endblock %}

@@ -3,6 +3,13 @@
 {% block title %}History for {{ rule.description }}{% endblock %}
 
 {% block content %}
+<nav aria-label="breadcrumb" class="breadcrumb">
+      <ul>
+        <li><a href="{{ url_for('main.dashboard') }}">Home</a></li>
+        <li><a href="{{ url_for('main.recurring_transactions') }}">Recurring</a></li>
+        <li>History: {{ rule.description }}</li>
+      </ul>
+    </nav>
 <article>
     <header>
         <hgroup>
