@@ -1,4 +1,6 @@
 # tests/test_admin.py
+from finance_tracker.models import User
+from finance_tracker import db
 import pytest
 
 @pytest.mark.feature
@@ -43,3 +45,50 @@ def test_admin_link_is_visible_for_admin_user(logged_in_admin_client):
     response = logged_in_admin_client.get('/dashboard')
     assert response.status_code == 200
     assert b'href="/admin"' in response.data
+
+@pytest.mark.feature
+def test_admin_can_promote_user(logged_in_admin_client, test_app):
+    """
+    GIVEN a logged-in admin user and a regular user
+    WHEN the admin makes a POST request to promote the regular user
+    THEN the regular user's 'is_admin' flag should be set to True
+    """
+    # GIVEN: A second, regular user exists in the database
+    with test_app.app_context():
+        regular_user = User(username='regularuser', email='regular@test.com', password_hash='...')
+        db.session.add(regular_user)
+        db.session.commit()
+        regular_user_id = regular_user.id # Get the ID for the URL
+
+    # WHEN: The logged-in admin sends a POST request to the promote URL
+    promote_url = f'/admin/user/promote/{regular_user_id}'
+    response = logged_in_admin_client.post(promote_url, follow_redirects=True)
+
+    # THEN: The request should be successful and the user should be promoted
+    assert response.status_code == 200
+    assert b"has been promoted to an admin" in response.data # Check for the flash message
+
+    with test_app.app_context():
+        promoted_user = db.session.get(User, regular_user_id)
+        assert promoted_user.is_admin is True
+
+@pytest.mark.feature
+def test_regular_user_cannot_promote(auth_client, test_app):
+    """
+    GIVEN a logged-in regular user
+    WHEN the user attempts to make a POST request to the promote URL
+    THEN the application should return a 403 Forbidden error
+    """
+    # GIVEN: A target user to be promoted exists
+    with test_app.app_context():
+        target_user = User(username='targetuser', email='target@test.com', password_hash='...')
+        db.session.add(target_user)
+        db.session.commit()
+        target_user_id = target_user.id
+
+    # WHEN: The logged-in regular user (from auth_client) sends the POST request
+    promote_url = f'/admin/user/promote/{target_user_id}'
+    response = auth_client.post(promote_url)
+    
+    # THEN: The request is forbidden
+    assert response.status_code == 403
