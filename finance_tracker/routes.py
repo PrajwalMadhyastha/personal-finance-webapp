@@ -31,6 +31,7 @@ import mimetypes
 import os
 from functools import wraps
 from flask import abort
+from .utils import process_tags, parse_date_range
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -125,14 +126,7 @@ def admin_dashboard():
 @login_required
 def dashboard():
     # --- Date Range Handling for Charts & Summary Cards ---
-    now_utc = datetime.now(timezone.utc)
-    # Default to the current month if no dates are provided in the URL
-    first_day_of_month = now_utc.replace(day=1).date()
-    start_date_str = request.args.get('start_date', first_day_of_month.strftime('%Y-%m-%d'))
-    end_date_str = request.args.get('end_date', now_utc.date().strftime('%Y-%m-%d'))
-
-    start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-    end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    start_date, end_date, start_date_str, end_date_str = parse_date_range(request.args)
     end_date_inclusive = datetime.combine(end_date, datetime.max.time())
 
     # --- Calculate Summary Totals for the Selected Period ---
@@ -158,7 +152,7 @@ def dashboard():
     activity_logs_stmt = select(ActivityLog).filter_by(user_id=current_user.id).order_by(ActivityLog.timestamp.desc()).limit(5)
     recent_activity = db.session.execute(activity_logs_stmt).scalars().all()
 
-    # --- Budget Progress Logic (for current calendar month only) ---
+    now_utc = datetime.now(timezone.utc)
     current_month = now_utc.month
     current_year = now_utc.year
     
@@ -219,10 +213,14 @@ def transactions():
     # Get all potential filters from the URL query parameters
     search_query = request.args.get('q', '').strip()
     trans_type = request.args.get('type', '').strip()
+    # --- NEW: Get account and category filters ---
+    account_id = request.args.get('account_id', type=int)
+    category_id = request.args.get('category_id', type=int)
+    # --- END NEW ---
     start_date_str = request.args.get('start_date')
     end_date_str = request.args.get('end_date')
 
-    # Start with a base query and eagerly load related data to prevent extra queries
+    # Start with a base query and eagerly load related data
     stmt = select(Transaction).options(
         selectinload(Transaction.account),
         selectinload(Transaction.categories), 
@@ -230,12 +228,20 @@ def transactions():
     ).filter_by(user_id=current_user.id)
 
     # --- Apply Filters Dynamically ---
-
-    # Filter by transaction type (income/expense)
     if trans_type in ['income', 'expense']:
         stmt = stmt.where(Transaction.transaction_type == trans_type)
     
-    # Filter by date range
+    # --- NEW: Filter by account ---
+    if account_id:
+        stmt = stmt.where(Transaction.account_id == account_id)
+    # --- END NEW ---
+    
+    # --- NEW: Filter by category ---
+    if category_id:
+        # This checks if the transaction is associated with the given category ID
+        stmt = stmt.where(Transaction.categories.any(id=category_id))
+    # --- END NEW ---
+
     if start_date_str and end_date_str:
         try:
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
@@ -244,14 +250,10 @@ def transactions():
             stmt = stmt.where(Transaction.transaction_date.between(start_date, end_date_inclusive))
         except ValueError:
             flash('Invalid date format provided.', 'error')
-            # Reset dates if format is wrong
-            start_date_str = None
-            end_date_str = None
+            start_date_str, end_date_str = None, None
 
-    # Filter by search query
     if search_query:
         search_term = f"%{search_query}%"
-        # We need to join to related tables to search their fields
         stmt = stmt.join(Transaction.categories, isouter=True).join(Transaction.tags, isouter=True).filter(
             or_(
                 Transaction.description.ilike(search_term),
@@ -259,20 +261,31 @@ def transactions():
                 Category.name.ilike(search_term),
                 Tag.name.ilike(search_term)
             )
-        ).distinct() # Use distinct to avoid duplicate results from joins
+        ).distinct()
 
     # --- Finalize and Execute Query ---
     stmt = stmt.order_by(Transaction.transaction_date.desc())
-    all_transactions = db.paginate(stmt, page=page, per_page=15)
+    all_transactions = db.paginate(stmt, page=page, per_page=15, error_out=False)
+
+    # --- NEW: Fetch accounts and categories for the filter dropdowns ---
+    user_accounts = db.session.execute(select(Account).filter_by(user_id=current_user.id).order_by(Account.name)).scalars().all()
+    user_categories = db.session.execute(select(Category).filter_by(user_id=current_user.id).order_by(Category.name)).scalars().all()
+    # --- END NEW ---
         
     return render_template(
         'transactions.html', 
         transactions=all_transactions,
-        # Pass all filters back to the template to repopulate forms/links
+        # Pass all filters back to the template
         search_query=search_query,
         selected_type=trans_type,
         start_date=start_date_str,
-        end_date=end_date_str
+        end_date=end_date_str,
+        # --- NEW: Pass new data to the template ---
+        accounts=user_accounts,
+        categories=user_categories,
+        selected_account_id=account_id,
+        selected_category_id=category_id
+        # --- END NEW ---
     )
 
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
@@ -304,15 +317,7 @@ def add_transaction():
         if form.category.data:
             new_transaction.categories.append(form.category.data)
 
-        if form.tags.data:
-            tag_names = [name.strip() for name in form.tags.data.split(',') if name.strip()]
-            for tag_name in tag_names:
-                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
-                tag = db.session.execute(stmt).scalar_one_or_none()
-                if not tag:
-                    tag = Tag(name=tag_name, user_id=current_user.id)
-                    db.session.add(tag)
-                new_transaction.tags.append(tag)
+        process_tags(new_transaction, form.tags.data)
         
         account = form.account.data
         if new_transaction.transaction_type == 'income':
@@ -373,15 +378,7 @@ def edit_transaction(transaction_id):
             transaction.categories.append(form.category.data)
 
         transaction.tags.clear()
-        if form.tags.data:
-            tag_names = [name.strip() for name in form.tags.data.split(',') if name.strip()]
-            for tag_name in tag_names:
-                stmt = select(Tag).where(func.lower(Tag.name) == func.lower(tag_name), Tag.user_id == current_user.id)
-                tag = db.session.execute(stmt).scalar_one_or_none()
-                if not tag:
-                    tag = Tag(name=tag_name, user_id=current_user.id)
-                    db.session.add(tag)
-                transaction.tags.append(tag)
+        process_tags(transaction, form.tags.data)
         
         log_activity(f"Updated transaction: '{transaction.description}'")
         db.session.commit()
