@@ -663,6 +663,8 @@ def validate_import_file():
             row_num = i + 2
             errors = []
             validation_report["summary"]["total_rows"] += 1
+            if not any(field.strip() for field in row):
+                continue
             
             # 1. Check for the correct 10-column format
             if len(row) != 10:
@@ -672,7 +674,7 @@ def validate_import_file():
                 continue
             
             date_str, time_str, desc, amount_str, dr_cr_str, account_str, is_expense_str, cats_str, tags_str, notes = row
-
+            dr_cr = dr_cr_str.strip().upper()
             # 2. Validate date, time, and amount
             try:
                 datetime.strptime(f"{date_str.strip()} {time_str.strip()}", '%Y-%m-%d %I:%M %p')
@@ -681,8 +683,9 @@ def validate_import_file():
                 errors.append(f"Invalid date/time ('{date_str} {time_str}') or amount ('{amount_str}').")
             
             # 3. Validate DR/CR column
-            if dr_cr_str.strip().upper() not in ['DR', 'CR']:
-                errors.append(f"DR/CR column must be 'DR' or 'CR'.")
+            is_expense_val = is_expense_str.strip().lower()
+            if dr_cr == 'DR' and is_expense_val not in ['yes', 'no', '']:
+                errors.append(f"'Is Expense?' must be 'Yes', 'No', or empty.")
 
             # 4. Validate that the account can be parsed and exists
             acc_name, acc_type = None, None
@@ -707,6 +710,94 @@ def validate_import_file():
     except Exception as e:
         current_app.logger.error(f"CSV Validation failed: {e}")
         return jsonify({"error": "An unexpected error occurred during file validation."}), 500
+
+@main_bp.route('/api/import/commit', methods=['POST'])
+@login_required
+def commit_import_data():
+    """
+    Receives a finalized JSON payload of transaction data, creates the
+    transaction records, and commits them to the database.
+    """
+    final_data = request.get_json()
+    if not final_data or 'transactions' not in final_data:
+        return jsonify({"error": "Invalid or missing JSON payload."}), 400
+
+    transactions_to_import = final_data['transactions']
+    
+    try:
+        # This logic is very similar to your original import function
+        transactions_to_add, accounts_to_update = [], {}
+        user_accounts = {(acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars()}
+        user_categories = {cat.name.lower(): cat for cat in db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars()}
+        user_tags = {tag.name.lower(): tag for tag in db.session.execute(select(Tag).filter_by(user_id=current_user.id)).scalars()}
+
+        for row_data in transactions_to_import:
+            # Unpack the row data
+            date_str, time_str, desc, amount_str, dr_cr_str, account_str, is_expense_str, cats_str, tags_str, notes = row_data
+            
+            # This block assumes data is already validated, but we perform light parsing
+            trans_date = datetime.strptime(f"{date_str} {time_str}", '%Y-%m-%d %I:%M %p')
+            amount = decimal.Decimal(amount_str)
+            trans_type = 'expense' if dr_cr_str.upper() == 'DR' else 'income'
+            affects_balance = False if trans_type == 'expense' and is_expense_str.lower() == 'no' else True
+            
+            # Parse account
+            acc_name, acc_type = None, None
+            match = re.match(r'^(.*) \((.*)\)$', account_str.strip())
+            if match:
+                acc_name, acc_type = match.groups()
+            
+            account = user_accounts.get((acc_name.lower(), acc_type.lower()))
+            if not account: continue # Skip if account not found (should not happen with validated data)
+
+            # Create the transaction object
+            new_trans = Transaction(
+                user_id=current_user.id, transaction_date=trans_date, description=desc,
+                amount=amount, transaction_type=trans_type, affects_balance=affects_balance,
+                account_id=account.id, notes=notes
+            )
+
+            # Process Categories and Tags
+            if cats_str:
+                for cat_name in [c.strip() for c in cats_str.split(';') if c.strip()]:
+                    category = user_categories.get(cat_name.lower())
+                    if not category:
+                        category = Category(name=cat_name, user_id=current_user.id)
+                        db.session.add(category)
+                        user_categories[cat_name.lower()] = category
+                    new_trans.categories.append(category)
+
+            if tags_str:
+                for tag_name in [t.strip() for t in tags_str.split(';') if t.strip()]:
+                    tag = user_tags.get(tag_name.lower())
+                    if not tag:
+                        tag = Tag(name=tag_name, user_id=current_user.id)
+                        db.session.add(tag)
+                        user_tags[tag_name.lower()] = tag
+                    new_trans.tags.append(tag)
+            
+            transactions_to_add.append(new_trans)
+            
+            # Tally balance changes
+            if affects_balance:
+                balance_change = amount if trans_type == 'income' else -amount
+                if account.id not in accounts_to_update:
+                    accounts_to_update[account.id] = {'account': account, 'change': decimal.Decimal(0)}
+                accounts_to_update[account.id]['change'] += balance_change
+        
+        # Final atomic commit
+        if transactions_to_add:
+            db.session.add_all(transactions_to_add)
+            for data in accounts_to_update.values():
+                data['account'].balance += data['change']
+            db.session.commit()
+            
+        return jsonify({"message": f"Successfully imported {len(transactions_to_import)} transactions."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f"Final CSV Commit failed: {e}")
+        return jsonify({"error": "An unexpected error occurred during the final import."}), 500
 
 # ===================================================================
 # ACCOUNT & BUDGET ROUTES

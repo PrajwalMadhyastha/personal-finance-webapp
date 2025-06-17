@@ -7,179 +7,195 @@
     <header>
         <hgroup>
             <h2>Import Transactions from CSV</h2>
-            <p>Step 1: Upload and validate your file before importing.</p>
+            <p>Step 1: Upload a file to validate its contents.</p>
         </hgroup>
     </header>
 
-    <!-- The form for uploading is correct and does not need to change -->
-    <form id="import-form" method="POST" enctype="multipart/form-data">
+    <form id="upload-form">
         <label for="transaction_file">
             CSV File
             <input type="file" id="transaction_file" name="transaction_file" accept=".csv" required>
         </label>
-        <button id="submit-btn" type="submit">Validate File</button>
-        <p id="loading-indicator" style="display: none;" aria-busy="true">Validating, please wait...</p>
+        <button id="validate-btn" type="submit">Validate File</button>
+        <p id="loading-indicator" style="display: none;" aria-busy="true">Validating...</p>
     </form>
-
+    
     <hr>
     
-    <!-- The results section is correct and does not need to change -->
     <div id="results-section" style="display: none;">
         <h4>Validation Results</h4>
         <p id="summary-text"></p>
+
+        <!-- FIX: Redesigned error section for clarity -->
         <div id="errors-section" style="display: none;">
             <h5>Rows to Correct</h5>
-            <div style="overflow-x: auto;">
-                <table id="errors-table">
-                    <thead>
-                        <tr>
-                            <th>Row #</th>
-                            <th>Errors</th>
-                            <th>Row Data</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- JavaScript will populate this -->
-                    </tbody>
-                </table>
-            </div>
+            <p>Edit the incorrect values below and click "Re-validate".</p>
+            <div id="error-cards-container"></div>
+            <button id="revalidate-btn" class="secondary">Re-validate Corrected Rows</button>
         </div>
+        
+        <div id="valid-section" style="display: none;">
+            <h5>Ready to Import</h5>
+            <p>The following rows are valid and will be imported.</p>
+        </div>
+        
+        <!-- Final commit button appears only when all rows are valid -->
+        <button id="commit-btn" style="display: none;" class="contrast">Confirm and Save to Database</button>
+        <p id="commit-loading-indicator" style="display: none;" aria-busy="true">Importing...</p>
     </div>
 </article>
 
+<!-- FIX: The CSV guide is restored -->
 <article>
     <h4>CSV Format Instructions</h4>
-    <!-- START: Updated instructions for new format -->
-    <p>Please ensure your CSV file has **10 columns** in the following order, with a header row. The "Export All" feature generates a file in this exact format.</p>
+    <p>Please ensure your CSV file has **10 columns** in the following order, with a header row.</p>
     <pre><code>Date,Time,Description,Amount,DR/CR,Account,Is Expense?,Categories,Tags,Notes
 2025-06-17,10:30 AM,Business Lunch,150.75,DR,"HDFC (Credit Card)",No,Food;Business,reimbursable,
 2025-06-16,12:00 PM,Salary,50000.00,CR,"SBI (Savings)",,Salary,,Paycheck</code></pre>
     <ul>
-        <li><strong>Date & Time:</strong> Must be in <code>YYYY-MM-DD</code> and `HH:MM AM/PM` formats.</li>
-        <li><strong>Amount:</strong> Always a positive number.</li>
+        <li><strong>Date & Time:</strong> Must be in `YYYY-MM-DD` and `HH:MM AM/PM` formats.</li>
         <li><strong>DR/CR:</strong> Use `DR` for debits (expenses) and `CR` for credits (income).</li>
+        <li><strong>Is Expense?:</strong> For `DR` rows only. Enter `Yes`, `No`, or leave it empty.</li>
         <li><strong>Account:</strong> Must exactly match the format "Account Name (Account Type)".</li>
-        <li><strong>Is Expense?:</strong> For `DR` rows only. Enter `Yes` if it should count towards totals, or `No` if it is just for tracking (e.g., reimbursable). Leave blank for `CR` rows.</li>
         <li><strong>Categories & Tags:</strong> Separate multiple values with a semicolon (`;`).</li>
     </ul>
-    <!-- END: Updated instructions -->
 </article>
 {% endblock %}
 
 
 {% block scripts %}
-    {{ super() }} <!-- Includes scripts from base.html -->
+    {{ super() }}
+    <!-- FIX: CSS for a much better error correction layout -->
+    <style>
+        .error-card { border: 1px solid var(--pico-color-red-500); border-radius: var(--border-radius); padding: 1rem; margin-bottom: 1rem; }
+        .error-card .error-messages { color: var(--pico-color-red-600); font-weight: bold; margin-bottom: 1rem; list-style-position: inside; }
+        .error-card label { margin-bottom: 0.5rem; }
+        .error-card input { width: 100%; }
+    </style>
+
     <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Get references to all the important UI elements
-        const importForm = document.getElementById('import-form');
+        // --- UI Element References ---
+        const uploadForm = document.getElementById('upload-form');
         const fileInput = document.getElementById('transaction_file');
-        const submitBtn = document.getElementById('submit-btn');
+        const validateBtn = document.getElementById('validate-btn');
+        const commitBtn = document.getElementById('commit-btn');
+        const revalidateBtn = document.getElementById('revalidate-btn');
         const loadingIndicator = document.getElementById('loading-indicator');
-        
+        const commitLoadingIndicator = document.getElementById('commit-loading-indicator');
         const resultsSection = document.getElementById('results-section');
         const summaryText = document.getElementById('summary-text');
         const errorsSection = document.getElementById('errors-section');
-        const errorsTableBody = document.querySelector('#errors-table tbody');
+        const errorCardsContainer = document.getElementById('error-cards-container');
+        const validSection = document.getElementById('valid-section');
+        
+        let originalValidRows = []; // Store validated data
 
-        // Attach an event listener to the form's submit event
-        importForm.addEventListener('submit', async function(event) {
-            event.preventDefault(); // Stop the default form submission
+        // --- Event Listeners ---
+        uploadForm.addEventListener('submit', handleValidation);
+        revalidateBtn.addEventListener('click', handleValidation);
+        commitBtn.addEventListener('click', handleCommit);
 
-            // Check which action we're performing
-            const currentAction = submitBtn.getAttribute('data-action') || 'validate';
-
-            if (currentAction === 'validate') {
-                if (!fileInput.files.length) {
-                    alert('Please select a file to validate.');
-                    return;
-                }
-
-                // Show loading indicator and disable the button
-                loadingIndicator.style.display = 'block';
-                submitBtn.setAttribute('aria-busy', 'true');
-                submitBtn.disabled = true;
-
-                const formData = new FormData(importForm);
-                
-                try {
-                    const response = await fetch("{{ url_for('main.validate_import_file') }}", {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await response.json();
-                    
-                    if (!response.ok) {
-                        throw new Error(data.error || 'A server error occurred.');
-                    }
-
-                    // Process and display the validation results
-                    displayValidationResults(data);
-
-                } catch (error) {
-                    summaryText.textContent = `Error: ${error.message}`;
-                    resultsSection.style.display = 'block';
-                } finally {
-                    // Hide loading indicator and re-enable button
-                    loadingIndicator.style.display = 'none';
-                    submitBtn.setAttribute('aria-busy', 'false');
-                    submitBtn.disabled = false;
-                }
-            } else if (currentAction === 'import') {
-                // If the action is 'import', submit the form to the real import endpoint
-                importForm.action = "{{ url_for('main.import_transactions') }}";
-                importForm.submit();
+        async function handleValidation(event) {
+            event.preventDefault();
+            const formData = new FormData();
+            
+            // If it's a re-validation, we build a new CSV file in memory
+            if (event.target.id === 'revalidate-btn') {
+                const correctedData = gatherCorrectedData();
+                const headers = 'Date,Time,Description,Amount,DR/CR,Account,Is Expense?,Categories,Tags,Notes\n';
+                const csvContent = headers + correctedData.map(row => row.join(',')).join('\n');
+                formData.append('transaction_file', new Blob([csvContent]), 'corrected.csv');
+                summaryText.textContent = 'Re-validating your corrections...';
+            } else {
+                if (!fileInput.files.length) { alert('Please select a file.'); return; }
+                formData.append('transaction_file', fileInput.files[0]);
+                summaryText.textContent = 'Validating...';
             }
-        });
+
+            loadingIndicator.style.display = 'block';
+            validateBtn.setAttribute('aria-busy', 'true');
+            revalidateBtn.setAttribute('aria-busy', 'true');
+
+            try {
+                const response = await fetch("{{ url_for('main.validate_import_file') }}", { method: 'POST', body: formData });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error || 'Server error.');
+                
+                originalValidRows = data.valid_rows.map(row => row.data);
+                displayValidationResults(data);
+
+            } catch (error) {
+                summaryText.textContent = `Error: ${error.message}`;
+            } finally {
+                loadingIndicator.style.display = 'none';
+                validateBtn.setAttribute('aria-busy', 'false');
+                revalidateBtn.setAttribute('aria-busy', 'false');
+            }
+        }
+
+        async function handleCommit() {
+            commitLoadingIndicator.style.display = 'block';
+            commitBtn.setAttribute('aria-busy', 'true');
+            const finalData = { "transactions": originalValidRows };
+            try {
+                const response = await fetch("{{ url_for('main.commit_import_data') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(finalData)
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Commit failed.');
+                window.location.href = "{{ url_for('main.dashboard') }}?import_success=true";
+            } catch (error) {
+                alert(`Import failed: ${error.message}`);
+                commitLoadingIndicator.style.display = 'none';
+                commitBtn.setAttribute('aria-busy', 'false');
+            }
+        }
 
         function displayValidationResults(data) {
-            // Clear previous results
-            errorsTableBody.innerHTML = '';
-
-            // Update summary text
+            errorCardsContainer.innerHTML = '';
             const { total_rows, valid_count, invalid_count } = data.summary;
-            summaryText.textContent = `File processed: ${total_rows} total rows found. ${valid_count} valid rows and ${invalid_count} invalid rows.`;
+            summaryText.textContent = `File processed: ${total_rows} rows found. ${valid_count} valid, ${invalid_count} invalid.`;
             
-            // Display invalid rows if there are any
+            // Render error cards
             if (invalid_count > 0) {
+                const headers = ['Date', 'Time', 'Description', 'Amount', 'DR/CR', 'Account', 'Is Expense?', 'Categories', 'Tags', 'Notes'];
                 data.invalid_rows.forEach(row => {
-                    const tr = document.createElement('tr');
-                    
-                    const rowNumTd = document.createElement('td');
-                    rowNumTd.textContent = row.row_number;
-                    
-                    const errorsTd = document.createElement('td');
-                    // Join multiple errors with a line break
-                    errorsTd.innerHTML = row.errors.join('<br>');
-                    
-                    const dataTd = document.createElement('td');
-                    // Display the raw row data, truncated for readability
-                    dataTd.textContent = row.data.join(', ').substring(0, 100) + '...';
-                    
-                    tr.appendChild(rowNumTd);
-                    tr.appendChild(errorsTd);
-                    tr.appendChild(dataTd);
-                    errorsTableBody.appendChild(tr);
+                    const card = document.createElement('div');
+                    card.className = 'error-card';
+                    let inputsHTML = row.data.map((cell, index) => `<label>${headers[index]}<input type="text" value="${cell}"></label>`).join('');
+                    card.innerHTML = `<h6>Row ${row.row_number}</h6><ul class="error-messages">${row.errors.map(e => `<li>${e}</li>`).join('')}</ul><div>${inputsHTML}</div>`;
+                    errorCardsContainer.appendChild(card);
                 });
                 errorsSection.style.display = 'block';
+                revalidateBtn.style.display = 'block';
+                commitBtn.style.display = 'none'; // Hide commit button if there are errors
+                validSection.style.display = 'none';
             } else {
                 errorsSection.style.display = 'none';
+                revalidateBtn.style.display = 'none';
+                // Only show the valid section and commit button if everything is valid
+                if (valid_count > 0) {
+                    validSection.style.display = 'block';
+                    commitBtn.style.display = 'block';
+                } else {
+                    validSection.style.display = 'none';
+                    commitBtn.style.display = 'none';
+                }
             }
-            
-            // Show the results section
             resultsSection.style.display = 'block';
+        }
 
-            // If the file is valid and can be imported, change the button
-            if (valid_count > 0 && invalid_count === 0) {
-                submitBtn.textContent = 'Confirm & Import';
-                submitBtn.setAttribute('data-action', 'import');
-                submitBtn.classList.add('contrast'); // Make it stand out
-            } else {
-                submitBtn.textContent = 'Validate Another File';
-                submitBtn.setAttribute('data-action', 'validate');
-                submitBtn.classList.remove('contrast');
-            }
+        function gatherCorrectedData() {
+            const correctedData = [];
+            const errorCards = document.querySelectorAll('.error-card');
+            errorCards.forEach(card => {
+                const cells = Array.from(card.querySelectorAll('input')).map(input => `"${input.value.replace(/"/g, '""')}"`); // Quote values to handle commas
+                correctedData.push(cells);
+            });
+            return correctedData;
         }
     });
     </script>
