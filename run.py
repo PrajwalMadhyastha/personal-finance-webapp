@@ -1,8 +1,9 @@
 # run.py
 from finance_tracker import create_app, db
+
 # Corrected import: We now import Transaction, not Expense.
 # It's also good practice to import all models that might be used in CLI commands.
-from finance_tracker.models import Transaction, User, Account 
+from finance_tracker.models import Transaction, User, Account
 from flask_migrate import upgrade
 
 # The create_app function handles all application setup
@@ -37,7 +38,7 @@ def clear_transactions_command():
 
 
 # This block runs the app for local development
-if __name__ == '__main__':
+if __name__ == "__main__":
     # We do not run migrations automatically on startup.
     # This is a manual step via the manage.sh script.
-    app.run(debug=True, host='0.0.0.0', use_reloader=True)
+    app.run(debug=True, host="0.0.0.0", use_reloader=True)

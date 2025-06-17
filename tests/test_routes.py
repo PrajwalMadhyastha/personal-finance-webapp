@@ -1,5 +1,6 @@
 import pytest
 
+
 @pytest.mark.feature
 def test_login_page_loads(client):
     """
@@ -7,10 +8,11 @@ def test_login_page_loads(client):
     WHEN the '/login' page is requested (GET)
     THEN check that the response is valid
     """
-    response = client.get('/login')
+    response = client.get("/login")
     assert response.status_code == 200
     assert b"Log In" in response.data
     assert b"Need an account?" in response.data
+
 
 @pytest.mark.feature
 def test_dashboard_redirects_when_not_logged_in(client):
@@ -19,11 +21,12 @@ def test_dashboard_redirects_when_not_logged_in(client):
     WHEN the '/dashboard' page is requested (GET) by an unauthenticated client
     THEN check that the user is redirected to the login page
     """
-    response = client.get('/dashboard', follow_redirects=True)
+    response = client.get("/dashboard", follow_redirects=True)
     # A 302 status code indicates a redirect
-    assert response.status_code == 200 # After following redirect
+    assert response.status_code == 200  # After following redirect
     assert b"Please log in to access this page." in response.data
     assert b"Log In" in response.data
+
 
 @pytest.mark.feature
 def test_dashboard_loads_when_logged_in(auth_client):
@@ -32,7 +35,7 @@ def test_dashboard_loads_when_logged_in(auth_client):
     WHEN the '/dashboard' page is requested (GET)
     THEN check that the dashboard is displayed
     """
-    response = auth_client.get('/dashboard')
+    response = auth_client.get("/dashboard")
     assert response.status_code == 200
     assert b"Dashboard" in response.data
     assert b"Welcome back, testclient!" in response.data

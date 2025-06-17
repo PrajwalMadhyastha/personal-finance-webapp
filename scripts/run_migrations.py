@@ -16,7 +16,7 @@ print(f"Using database URI (hidden password): {db_uri.split('Password=')[0]}..."
 
 # Create a Flask app instance specifically for the migration
 app = create_app()
-app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+app.config["SQLALCHEMY_DATABASE_URI"] = db_uri
 
 # The 'with app.app_context()' is crucial
 with app.app_context():

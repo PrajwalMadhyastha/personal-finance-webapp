@@ -18,6 +18,10 @@ jobs:
           python-version: '3.11'
       - name: 'Install Dependencies'
         run: pip install -r requirements.txt
+
+      - name: 'Check code formatting with black'
+        run: black --check .
+        
       - name: 'Lint with flake8'
         run: flake8 . --count --exit-zero --max-complexity=10 --max-line-length=119 --statistics
       - name: 'Run Tests with Pytest'
