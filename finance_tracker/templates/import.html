@@ -4,20 +4,54 @@
 
 {% block content %}
 <article>
-    <hgroup>
-        <h2>Import Transactions from CSV</h2>
-        <p>Bulk upload transactions from a CSV file.</p>
-    </hgroup>
+    <header>
+        <hgroup>
+            <h2>Import Transactions from CSV</h2>
+            <p>Step 1: Upload and validate your file before importing.</p>
+        </hgroup>
+    </header>
 
-    <form method="POST" enctype="multipart/form-data" action="{{ url_for('main.import_transactions') }}">
-        <label for="transaction_file">CSV File<input type="file" id="transaction_file" name="transaction_file" accept=".csv" required></label>
-        <button type="submit">Upload and Import</button>
+    <!-- The form will be controlled by our JavaScript -->
+    <form id="import-form" method="POST" enctype="multipart/form-data">
+        <label for="transaction_file">
+            CSV File
+            <input type="file" id="transaction_file" name="transaction_file" accept=".csv" required>
+        </label>
+        <button id="submit-btn" type="submit">Validate File</button>
+        <!-- A loading indicator that is initially hidden -->
+        <p id="loading-indicator" style="display: none;" aria-busy="true">Validating, please wait...</p>
     </form>
-    
+
     <hr>
     
+    <!-- This section will be populated with validation results by our script -->
+    <div id="results-section" style="display: none;">
+        <h4>Validation Results</h4>
+        <p id="summary-text"></p>
+
+        <!-- Table for displaying rows with errors -->
+        <div id="errors-section" style="display: none;">
+            <h5>Rows to Correct</h5>
+            <div style="overflow-x: auto;">
+                <table id="errors-table">
+                    <thead>
+                        <tr>
+                            <th>Row #</th>
+                            <th>Errors</th>
+                            <th>Row Data</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- JavaScript will populate this -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</article>
+
+<article>
     <h4>CSV Format Instructions</h4>
-    <!-- START: Updated instructions for 10 columns -->
     <p>Please ensure your CSV file has **10 columns** in the following order, with a header row. The "Export All" feature generates a file in this exact format.</p>
     <pre><code>Date,Time,Description,Amount,Type,Account Name,Account Type,Categories,Tags,Notes
 2025-06-17,10:30 AM,Groceries,150.75,expense,SBI,Savings,Groceries,shopping,
@@ -25,11 +59,129 @@
     <ul>
         <li><strong>Date:</strong> Must be in <code>YYYY-MM-DD</code> format.</li>
         <li><strong>Time:</strong> Must be in 12-hour format with AM/PM (e.g., `10:30 AM`, `02:00 PM`).</li>
-        <li><strong>Amount:</strong> Always a positive number.</li>
+        <li><strong>Amount:</strong> Must be a positive number.</li>
         <li><strong>Type:</strong> Must be `income` or `expense`.</li>
         <li><strong>Account Name & Account Type:</strong> Must exactly match an account you have created.</li>
         <li><strong>Categories & Tags:</strong> Separate multiple values with a semicolon (`;`).</li>
     </ul>
-    <!-- END: Updated instructions -->
 </article>
+{% endblock %}
+
+
+{% block scripts %}
+    {{ super() }} <!-- Includes scripts from base.html -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Get references to all the important UI elements
+        const importForm = document.getElementById('import-form');
+        const fileInput = document.getElementById('transaction_file');
+        const submitBtn = document.getElementById('submit-btn');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        
+        const resultsSection = document.getElementById('results-section');
+        const summaryText = document.getElementById('summary-text');
+        const errorsSection = document.getElementById('errors-section');
+        const errorsTableBody = document.querySelector('#errors-table tbody');
+
+        // Attach an event listener to the form's submit event
+        importForm.addEventListener('submit', async function(event) {
+            event.preventDefault(); // Stop the default form submission
+
+            // Check which action we're performing
+            const currentAction = submitBtn.getAttribute('data-action') || 'validate';
+
+            if (currentAction === 'validate') {
+                if (!fileInput.files.length) {
+                    alert('Please select a file to validate.');
+                    return;
+                }
+
+                // Show loading indicator and disable the button
+                loadingIndicator.style.display = 'block';
+                submitBtn.setAttribute('aria-busy', 'true');
+                submitBtn.disabled = true;
+
+                const formData = new FormData(importForm);
+                
+                try {
+                    const response = await fetch("{{ url_for('main.validate_import_file') }}", {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    const data = await response.json();
+                    
+                    if (!response.ok) {
+                        throw new Error(data.error || 'A server error occurred.');
+                    }
+
+                    // Process and display the validation results
+                    displayValidationResults(data);
+
+                } catch (error) {
+                    summaryText.textContent = `Error: ${error.message}`;
+                    resultsSection.style.display = 'block';
+                } finally {
+                    // Hide loading indicator and re-enable button
+                    loadingIndicator.style.display = 'none';
+                    submitBtn.setAttribute('aria-busy', 'false');
+                    submitBtn.disabled = false;
+                }
+            } else if (currentAction === 'import') {
+                // If the action is 'import', submit the form to the real import endpoint
+                importForm.action = "{{ url_for('main.import_transactions') }}";
+                importForm.submit();
+            }
+        });
+
+        function displayValidationResults(data) {
+            // Clear previous results
+            errorsTableBody.innerHTML = '';
+
+            // Update summary text
+            const { total_rows, valid_count, invalid_count } = data.summary;
+            summaryText.textContent = `File processed: ${total_rows} total rows found. ${valid_count} valid rows and ${invalid_count} invalid rows.`;
+            
+            // Display invalid rows if there are any
+            if (invalid_count > 0) {
+                data.invalid_rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    
+                    const rowNumTd = document.createElement('td');
+                    rowNumTd.textContent = row.row_number;
+                    
+                    const errorsTd = document.createElement('td');
+                    // Join multiple errors with a line break
+                    errorsTd.innerHTML = row.errors.join('<br>');
+                    
+                    const dataTd = document.createElement('td');
+                    // Display the raw row data, truncated for readability
+                    dataTd.textContent = row.data.join(', ').substring(0, 100) + '...';
+                    
+                    tr.appendChild(rowNumTd);
+                    tr.appendChild(errorsTd);
+                    tr.appendChild(dataTd);
+                    errorsTableBody.appendChild(tr);
+                });
+                errorsSection.style.display = 'block';
+            } else {
+                errorsSection.style.display = 'none';
+            }
+            
+            // Show the results section
+            resultsSection.style.display = 'block';
+
+            // If the file is valid and can be imported, change the button
+            if (valid_count > 0 && invalid_count === 0) {
+                submitBtn.textContent = 'Confirm & Import';
+                submitBtn.setAttribute('data-action', 'import');
+                submitBtn.classList.add('contrast'); // Make it stand out
+            } else {
+                submitBtn.textContent = 'Validate Another File';
+                submitBtn.setAttribute('data-action', 'validate');
+                submitBtn.classList.remove('contrast');
+            }
+        }
+    });
+    </script>
 {% endblock %}
