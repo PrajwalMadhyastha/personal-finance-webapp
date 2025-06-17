@@ -3,85 +3,70 @@
 {% block title %}All Transactions{% endblock %}
 
 {% block content %}
-    <div class="grid">
+<article>
+    <header class="grid">
         <div>
-            <h2>Transactions</h2>
-            <p>A complete list of all your recorded financial activities.</p>
+            <hgroup>
+                <h2>Transactions</h2>
+                <p>A complete list of all your recorded financial activities.</p>
+            </hgroup>
         </div>
         <div style="text-align: right;">
+            <!-- Button to export ALL transactions -->
+            <a href="{{ url_for('main.export_transactions') }}" role="button" class="secondary outline">Export All to CSV</a>
             <a href="{{ url_for('main.add_transaction') }}" role="button">Add New Transaction</a>
         </div>
-    </div>
+    </header>
 
-    <!-- START: UPDATED FILTER FORM -->
-    <details>
-        <summary role="button" class="secondary outline">Filter Transactions</summary>
-        <form method="GET" action="{{ url_for('main.transactions') }}">
+    <!-- The filter form is optional and collapsed by default -->
+    <details {% if search_query or selected_type or selected_account_id or selected_category_id or start_date %}open{% endif %}>
+        <summary role="button" class="secondary outline">Filter & Export</summary>
+        <form id="filter-form" method="GET" action="{{ url_for('main.transactions') }}">
+            <!-- Filter inputs -->
             <div class="grid">
-                <!-- Search Box -->
-                <label for="search">
-                    Search
-                    <input type="search" id="search" name="q" placeholder="Description, category, tag..." value="{{ search_query or '' }}">
-                </label>
+                <label for="search">Search <input type="search" id="search" name="q" placeholder="Description, tag..." value="{{ search_query or '' }}"></label>
             </div>
             <div class="grid">
-                <!-- Account Dropdown -->
-                <label for="account_id">
-                    Account
+                <label for="account_id">Account
                     <select id="account_id" name="account_id">
-                        <option value="">-- All Accounts --</option>
-                        {% for account in accounts %}
-                            <option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>
-                                {{ account.name }}
-                            </option>
-                        {% endfor %}
+                        <option value="">All Accounts</option>
+                        {% for account in accounts %}<option value="{{ account.id }}" {% if account.id == selected_account_id %}selected{% endif %}>{{ account.name }}</option>{% endfor %}
                     </select>
                 </label>
-                <!-- Category Dropdown -->
-                <label for="category_id">
-                    Category
+                <label for="category_id">Category
                     <select id="category_id" name="category_id">
-                        <option value="">-- All Categories --</option>
-                        {% for category in categories %}
-                            <option value="{{ category.id }}" {% if category.id == selected_category_id %}selected{% endif %}>
-                                {{ category.name }}
-                            </option>
-                        {% endfor %}
+                        <option value="">All Categories</option>
+                        {% for category in categories %}<option value="{{ category.id }}" {% if category.id == selected_category_id %}selected{% endif %}>{{ category.name }}</option>{% endfor %}
                     </select>
                 </label>
             </div>
             <div class="grid">
-                 <!-- Type Dropdown -->
-                 <label for="type">
-                    Type
+                <label for="type">Type
                     <select id="type" name="type">
-                        <option value="">-- All Types --</option>
+                        <option value="">All Types</option>
                         <option value="expense" {% if selected_type == 'expense' %}selected{% endif %}>Expense</option>
                         <option value="income" {% if selected_type == 'income' %}selected{% endif %}>Income</option>
                     </select>
                 </label>
-                <!-- Date Filters -->
-                <label for="start_date">
-                    Start Date
-                    <input type="date" id="start_date" name="start_date" value="{{ start_date or '' }}">
-                </label>
-                <label for="end_date">
-                    End Date
-                    <input type="date" id="end_date" name="end_date" value="{{ end_date or '' }}">
-                </label>
+                <label for="start_date">Start Date <input type="date" id="start_date" name="start_date" value="{{ start_date or '' }}"></label>
+                <label for="end_date">End Date <input type="date" id="end_date" name="end_date" value="{{ end_date or '' }}"></label>
             </div>
-            <!-- Action Buttons -->
-            <button type="submit">Apply Filters</button>
-            <a href="{{ url_for('main.transactions') }}" role="button" class="secondary">Clear Filters</a>
+            
+            <!-- Action Buttons for the form -->
+            <div class="grid">
+                <button type="submit">Apply Filters</button>
+                <a href="{{ url_for('main.transactions') }}" role="button" class="secondary">Clear Filters</a>
+                <!-- This button is now powered by JavaScript -->
+                <a href="#" id="export-filtered-button" role="button" class="secondary contrast">Export Filtered to CSV</a>
+            </div>
         </form>
     </details>
-    <!-- END: UPDATED FILTER FORM -->
 
     <hr>
     
+    <!-- The main transaction table -->
     {% if transactions.items %}
         <table>
-            <!-- Table headers remain the same -->
             <thead>
                 <tr>
                     <th>Date</th>
@@ -97,29 +82,21 @@
                 {% for transaction in transactions.items %}
                     <tr>
                         <td>
-                            <span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
-                                {{ transaction.transaction_date.strftime('%b %d, %Y') }}
-                            </span>
+                            <span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">{{ transaction.transaction_date.strftime('%b %d, %Y') }}</span>
                         </td>
                         <td>{{ transaction.description }}</td>
                         <td>{{ transaction.account.name if transaction.account else 'N/A' }}</td>
-                        <td>
-                            {% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}
-                        </td>
-                        <td>
-                            {% for tag in transaction.tags %}
-                                <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge">{{ tag.name }}</a>
-                            {% endfor %}
-                        </td>
+                        <td>{% for cat in transaction.categories %}{{ cat.name }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+                        <td>{% for tag in transaction.tags %}<a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}">{{ tag.name }}</a> {% endfor %}</td>
                         <td class="{{ transaction.transaction_type }}" style="text-align: right;">
                              {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
                              ₹{{ "%.2f"|format(transaction.amount) }}
                         </td>
                         <td>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
                                 <a href="{{ url_for('main.edit_transaction', transaction_id=transaction.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
-                                <form action="{{ url_for('main.delete_transaction', transaction_id=transaction.id) }}" method="POST" style="margin-bottom: 0;">
-                                    <button type="submit" class="contrast outline" onclick="return confirm('Are you sure?');">Delete</button>
+                                <form action="{{ url_for('main.delete_transaction', transaction_id=transaction.id) }}" method="POST" style="margin-bottom: 0;" onsubmit="return confirm('Are you sure?');">
+                                    <button type="submit" class="contrast outline">Delete</button>
                                 </form>
                             </div>
                         </td>
@@ -128,7 +105,7 @@
             </tbody>
         </table>
 
-        <!-- START: UPDATED PAGINATION -->
+        <!-- Pagination -->
         <nav aria-label="Pagination">
             <ul>
                 <li>
@@ -148,13 +125,35 @@
                 </li>
             </ul>
         </nav>
-        <!-- END: UPDATED PAGINATION -->
         
     {% else %}
         <article>
-            <p style="text-align: center;">
-                No transactions found matching your selected filters. <a href="{{ url_for('main.transactions') }}">Clear all filters</a>.
-            </p>
+            <p style="text-align: center;">No transactions found matching your selected filters. <a href="{{ url_for('main.transactions') }}">Clear all filters</a>.</p>
         </article>
     {% endif %}
+</article>
+{% endblock %}
+
+{% block scripts %}
+    {{ super() }} <!-- Includes scripts from base.html -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const filterForm = document.getElementById('filter-form');
+        const exportButton = document.getElementById('export-filtered-button');
+
+        function updateExportLink() {
+            if (!filterForm || !exportButton) return;
+            const formData = new FormData(filterForm);
+            const params = new URLSearchParams();
+            for (const [key, value] of formData.entries()) {
+                if (value) params.append(key, value);
+            }
+            const queryString = params.toString();
+            const baseUrl = "{{ url_for('main.export_transactions') }}";
+            exportButton.href = queryString ? `${baseUrl}?${queryString}` : baseUrl;
+        }
+        filterForm.addEventListener('input', updateExportLink);
+        updateExportLink(); // Set initial link on page load
+    });
+    </script>
 {% endblock %}

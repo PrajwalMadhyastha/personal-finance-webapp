@@ -1351,24 +1351,60 @@ def net_worth_report():
 @main_bp.route('/export-transactions')
 @login_required
 def export_transactions():
-    string_io = io.StringIO()
-    csv_writer = csv.writer(string_io)
-    csv_writer.writerow(['Date', 'Description', 'Amount', 'Type', 'Account', 'Category', 'Notes'])
-    
-    stmt = select(Transaction).filter_by(user_id=current_user.id).order_by(Transaction.transaction_date)
-    transactions = db.session.execute(stmt).scalars().all()
+    """
+    Generates a CSV file of transactions. Exports ALL transactions by default,
+    or a filtered set if filter parameters are provided in the URL.
+    """
+    try:
+        # This route uses the same filtering logic as the main transactions page.
+        # If no filters are passed in the URL, it will fetch all transactions.
+        search_query = request.args.get('q', '').strip()
+        trans_type = request.args.get('type', '').strip()
+        account_id = request.args.get('account_id', type=int)
+        category_id = request.args.get('category_id', type=int)
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
 
-    for t in transactions:
-        category_names = ', '.join([c.name for c in t.categories])
-        csv_writer.writerow([
-            t.transaction_date.strftime('%Y-%m-%d'), t.description, t.amount,
-            t.transaction_type, t.account.name, category_names, t.notes
-        ])
-        
-    output = string_io.getvalue()
-    return Response(
-        output, mimetype="text/csv",
-        headers={"Content-disposition": "attachment; filename=transactions.csv"})
+        stmt = db.select(Transaction).options(
+            selectinload(Transaction.account), selectinload(Transaction.categories), selectinload(Transaction.tags)
+        ).filter_by(user_id=current_user.id)
+
+        # Apply filters only if they are present in the URL
+        if trans_type: stmt = stmt.where(Transaction.transaction_type == trans_type)
+        if account_id: stmt = stmt.where(Transaction.account_id == account_id)
+        if category_id: stmt = stmt.where(Transaction.categories.any(id=category_id))
+        if search_query:
+            search_term = f"%{search_query}%"
+            stmt = stmt.join(Transaction.categories, isouter=True).join(Transaction.tags, isouter=True).filter(
+                or_(Transaction.description.ilike(search_term), Transaction.notes.ilike(search_term), Category.name.ilike(search_term), Tag.name.ilike(search_term))
+            ).distinct()
+        if start_date_str and end_date_str:
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            end_date_inclusive = datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d').date(), datetime.max.time())
+            stmt = stmt.where(Transaction.transaction_date.between(start_date, end_date_inclusive))
+
+        # Execute query to get ALL matching results (no pagination)
+        stmt = stmt.order_by(Transaction.transaction_date.desc())
+        transactions_to_export = db.session.execute(stmt).scalars().all()
+
+        # Generate the CSV file in memory
+        string_io = io.StringIO()
+        csv_writer = csv.writer(string_io)
+        csv_writer.writerow(['Date', 'Description', 'Amount', 'Type', 'Account', 'Categories', 'Tags', 'Notes'])
+
+        for t in transactions_to_export:
+            category_names = ', '.join(sorted([c.name for c in t.categories]))
+            tag_names = ', '.join(sorted([tag.name for tag in t.tags]))
+            csv_writer.writerow([t.transaction_date.isoformat(), t.description, t.amount, t.transaction_type, t.account.name if t.account else 'N/A', category_names, tag_names, t.notes or ''])
+            
+        output = string_io.getvalue()
+        filename = f"transactions_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+        return Response(output, mimetype="text/csv", headers={"Content-disposition": f"attachment; filename={filename}"})
+
+    except Exception as e:
+        current_app.logger.error(f"Failed to export transactions: {e}")
+        flash("An error occurred while generating the export file.", "danger")
+        return redirect(url_for('main.transactions'))
 
 
 @main_bp.route('/api/transaction-summary')
