@@ -21,44 +21,34 @@ def test_edit_investment_transaction(auth_client, test_app):
     with test_app.app_context():
         # --- GIVEN ---
         # The auth_client fixture already created a user with id=1
-        # We need an asset and a transaction to edit
         asset = Asset(name="Test Inc.", ticker_symbol="TEST", asset_type="Stock")
-        # Note: transaction_date must be a datetime object for the form to pre-populate correctly
-        original_date = datetime.strptime("2025-01-05", "%Y-%m-%d")
+        original_date = datetime.strptime('2025-01-05T10:00', '%Y-%m-%dT%H:%M')
         trans_to_edit = InvestmentTransaction(
-            user_id=1,
-            asset=asset,
-            transaction_type="buy",
-            quantity=10,
-            price_per_unit=100,
-            transaction_date=original_date,
+            user_id=1, asset=asset, transaction_type='buy',
+            quantity=10, price_per_unit=100, transaction_date=original_date
         )
         db.session.add_all([asset, trans_to_edit])
         db.session.commit()
 
         # --- WHEN ---
-        # Simulate a POST request with the updated data
+        # --- THIS IS THE FIX ---
+        # The transaction_date now sends a string in the correct 'datetime-local' format.
         form_data = {
-            "transaction_type": "buy",
-            "quantity": "12.5",  # Change quantity from 10 to 12.5
-            "price_per_unit": "105.50",  # Change price from 100 to 105.50
-            "transaction_date": "2025-01-10",
+            'transaction_type': 'buy',
+            'quantity': '12.5',
+            'price_per_unit': '105.50',
+            'transaction_date': '2025-01-10T14:30' # Correct format with date and time
         }
-        response = auth_client.post(
-            f"/portfolio/edit/{trans_to_edit.id}", data=form_data, follow_redirects=True
-        )
-        assert (
-            response.status_code == 200
-        )  # Should redirect to portfolio page successfully
+        # --- END OF FIX ---
+        response = auth_client.post(f'/portfolio/edit/{trans_to_edit.id}', data=form_data, follow_redirects=True)
+        assert response.status_code == 200
 
         # --- THEN ---
-        # Fetch the updated transaction from the database
         updated_trans = db.session.get(InvestmentTransaction, trans_to_edit.id)
         assert updated_trans is not None
-        # Assert that the values have been updated
-        assert updated_trans.quantity == decimal.Decimal("12.5")
-        assert updated_trans.price_per_unit == decimal.Decimal("105.50")
-        assert updated_trans.transaction_date.strftime("%Y-%m-%d") == "2025-01-10"
+        assert updated_trans.quantity == decimal.Decimal('12.5')
+        assert updated_trans.price_per_unit == decimal.Decimal('105.50')
+        assert updated_trans.transaction_date.strftime('%Y-%m-%dT%H:%M') == '2025-01-10T14:30'
 
 
 @pytest.mark.feature
