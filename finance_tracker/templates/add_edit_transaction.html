@@ -4,7 +4,6 @@
 
 {% block content %}
 <article>
-    <!-- START: Improved Header -->
     <header class="grid">
         <div>
             <hgroup>
@@ -16,59 +15,61 @@
             <a href="{{ url_for('main.transactions') }}" role="button" class="secondary outline">‹ Back to Transactions</a>
         </div>
     </header>
-    <!-- END: Improved Header -->
     
     <form method="POST" action="">
         {{ form.hidden_tag() }}
 
+        <!-- START: Corrected Two-Column Layout -->
         <div class="grid">
+            <!-- Column 1: Transaction Type and the new Checkbox -->
             <div>
                 <label>{{ form.transaction_type.label }}</label>
                 <fieldset>
                     {% for subfield in form.transaction_type %}
-                        <label for="{{ subfield.id }}">
-                            {{ subfield }} {{ subfield.label.text }}
-                        </label>
+                        <label for="{{ subfield.id }}">{{ subfield }} {{ subfield.label.text }}</label>
                     {% endfor %}
                 </fieldset>
+                
+                <!-- The checkbox container is now here, inside the first column -->
+                <div id="affects-balance-container" style="display: none; margin-top: 1rem;">
+                    <label for="affects_balance">
+                        {{ form.affects_balance }}
+                        {{ form.affects_balance.label.text }}
+                    </label>
+                    <small>Uncheck this for items like reimbursable expenses that you want to track but not count against your totals.</small>
+                </div>
             </div>
+
+            <!-- Column 2: Amount -->
             <div>
                 {{ form.amount.label }} (₹)
                 {{ form.amount(placeholder="e.g., 50.75") }}
-                {% for error in form.amount.errors %}
-                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
-                {% endfor %}
+                {% for error in form.amount.errors %}<small style="color: var(--pico-color-red-500);">{{ error }}</small>{% endfor %}
             </div>
         </div>
+        <!-- END: Corrected Layout -->
 
         {{ form.description.label }}
         {{ form.description(placeholder="e.g., Coffee with friend") }}
-        {% for error in form.description.errors %}
-            <small style="color: var(--pico-color-red-500);">{{ error }}</small>
-        {% endfor %}
+        {% for error in form.description.errors %}<small class="error-text">{{ error }}</small>{% endfor %}
 
         <div class="grid">
             <div>
                 {{ form.account.label }}
                 {{ form.account() }}
-                 {% for error in form.account.errors %}
-                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
-                {% endfor %}
+                {% for error in form.account.errors %}<small class="error-text">{{ error }}</small>{% endfor %}
             </div>
             <div>
                 {{ form.transaction_date.label }}
                 {{ form.transaction_date() }}
-                {% for error in form.transaction_date.errors %}
-                    <small class="error-text">{{ error }}</small>
-                {% endfor %}
+                {% for error in form.transaction_date.errors %}<small class="error-text">{{ error }}</small>{% endfor %}
             </div>
-            <div id="category-field-container">
-                {{ form.category.label }}
-                {{ form.category() }}
-                {% for error in form.category.errors %}
-                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
-                {% endfor %}
-            </div>
+        </div>
+        
+        <div id="category-field-container">
+            {{ form.category.label }}
+            {{ form.category() }}
+            {% for error in form.category.errors %}<small class="error-text">{{ error }}</small>{% endfor %}
         </div>
         
         {{ form.tags.label }}
@@ -89,25 +90,26 @@
 document.addEventListener('DOMContentLoaded', function() {
     const transactionTypeRadios = document.querySelectorAll('input[name="transaction_type"]');
     const categoryContainer = document.getElementById('category-field-container');
+    // This now correctly finds the container for the checkbox
+    const affectsBalanceContainer = document.getElementById('affects-balance-container');
 
-    function toggleCategoryField() {
-        // Find the value of the currently checked radio button
+    function toggleFields() {
         const selectedType = document.querySelector('input[name="transaction_type"]:checked').value;
         
         if (selectedType === 'expense') {
             categoryContainer.style.display = 'block';
+            affectsBalanceContainer.style.display = 'block'; // Show for expenses
         } else {
             categoryContainer.style.display = 'none';
+            affectsBalanceContainer.style.display = 'none'; // Hide for income
         }
     }
 
-    // Add an event listener to each radio button to run our function on change
     transactionTypeRadios.forEach(radio => {
-        radio.addEventListener('change', toggleCategoryField);
+        radio.addEventListener('change', toggleFields);
     });
 
-    // Run the function once on page load to set the correct initial state
-    toggleCategoryField();
+    toggleFields(); // Run on page load
 });
 </script>
 {% endblock %}

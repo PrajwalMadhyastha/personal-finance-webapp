@@ -50,7 +50,7 @@ class Transaction(db.Model):
     description = db.Column(db.String(200), nullable=False)
     notes = db.Column(db.Text, nullable=True)
     recurring_transaction_id = db.Column(db.Integer, db.ForeignKey('recurring_transaction.id'), nullable=True)
-
+    affects_balance = db.Column(db.Boolean, nullable=False, default=True, server_default='1')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     account_id = db.Column(db.Integer, db.ForeignKey('account.id'), nullable=False)
     categories = db.relationship('Category', secondary=transaction_categories, lazy='subquery',

@@ -11,25 +11,22 @@
         </hgroup>
     </header>
 
-    <!-- The form will be controlled by our JavaScript -->
+    <!-- The form for uploading is correct and does not need to change -->
     <form id="import-form" method="POST" enctype="multipart/form-data">
         <label for="transaction_file">
             CSV File
             <input type="file" id="transaction_file" name="transaction_file" accept=".csv" required>
         </label>
         <button id="submit-btn" type="submit">Validate File</button>
-        <!-- A loading indicator that is initially hidden -->
         <p id="loading-indicator" style="display: none;" aria-busy="true">Validating, please wait...</p>
     </form>
 
     <hr>
     
-    <!-- This section will be populated with validation results by our script -->
+    <!-- The results section is correct and does not need to change -->
     <div id="results-section" style="display: none;">
         <h4>Validation Results</h4>
         <p id="summary-text"></p>
-
-        <!-- Table for displaying rows with errors -->
         <div id="errors-section" style="display: none;">
             <h5>Rows to Correct</h5>
             <div style="overflow-x: auto;">
@@ -52,18 +49,20 @@
 
 <article>
     <h4>CSV Format Instructions</h4>
+    <!-- START: Updated instructions for new format -->
     <p>Please ensure your CSV file has **10 columns** in the following order, with a header row. The "Export All" feature generates a file in this exact format.</p>
-    <pre><code>Date,Time,Description,Amount,Type,Account Name,Account Type,Categories,Tags,Notes
-2025-06-17,10:30 AM,Groceries,150.75,expense,SBI,Savings,Groceries,shopping,
-2025-06-16,12:00 PM,Salary,50000.00,income,SBI,Savings,Salary,,Paycheck</code></pre>
+    <pre><code>Date,Time,Description,Amount,DR/CR,Account,Is Expense?,Categories,Tags,Notes
+2025-06-17,10:30 AM,Business Lunch,150.75,DR,"HDFC (Credit Card)",No,Food;Business,reimbursable,
+2025-06-16,12:00 PM,Salary,50000.00,CR,"SBI (Savings)",,Salary,,Paycheck</code></pre>
     <ul>
-        <li><strong>Date:</strong> Must be in <code>YYYY-MM-DD</code> format.</li>
-        <li><strong>Time:</strong> Must be in 12-hour format with AM/PM (e.g., `10:30 AM`, `02:00 PM`).</li>
-        <li><strong>Amount:</strong> Must be a positive number.</li>
-        <li><strong>Type:</strong> Must be `income` or `expense`.</li>
-        <li><strong>Account Name & Account Type:</strong> Must exactly match an account you have created.</li>
+        <li><strong>Date & Time:</strong> Must be in <code>YYYY-MM-DD</code> and `HH:MM AM/PM` formats.</li>
+        <li><strong>Amount:</strong> Always a positive number.</li>
+        <li><strong>DR/CR:</strong> Use `DR` for debits (expenses) and `CR` for credits (income).</li>
+        <li><strong>Account:</strong> Must exactly match the format "Account Name (Account Type)".</li>
+        <li><strong>Is Expense?:</strong> For `DR` rows only. Enter `Yes` if it should count towards totals, or `No` if it is just for tracking (e.g., reimbursable). Leave blank for `CR` rows.</li>
         <li><strong>Categories & Tags:</strong> Separate multiple values with a semicolon (`;`).</li>
     </ul>
+    <!-- END: Updated instructions -->
 </article>
 {% endblock %}
 

@@ -1,7 +1,7 @@
 # finance_tracker/forms.py
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, DecimalField, SelectField, TextAreaField, SubmitField, RadioField, DateTimeField
+from wtforms import StringField, DecimalField, SelectField, TextAreaField, SubmitField, RadioField, DateTimeField, BooleanField
 # 1. Import ValidationError here
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 from wtforms_sqlalchemy.fields import QuerySelectField
@@ -46,6 +46,10 @@ class TransactionForm(FlaskForm):
         allow_blank=True,
         blank_text='-- Select a Category --',
         validators=[Optional()]
+    )
+    affects_balance = BooleanField(
+        'Count this transaction in totals and reports?',
+        default=True
     )
     transaction_date = DateTimeField(
         'Date & Time', 

@@ -32,6 +32,7 @@ import os
 from functools import wraps
 from flask import abort
 from .utils import process_tags, parse_date_range
+import re
 
 # ===================================================================
 # BLUEPRINT DEFINITION
@@ -134,7 +135,8 @@ def dashboard():
         Transaction.transaction_type, func.sum(Transaction.amount)
     ).where(
         Transaction.user_id == current_user.id,
-        Transaction.transaction_date.between(start_date, end_date_inclusive)
+        Transaction.transaction_date.between(start_date, end_date_inclusive),
+        Transaction.affects_balance == True
     ).group_by(Transaction.transaction_type)
     
     summary_data = {row[0]: row[1] for row in db.session.execute(summary_stmt).all()}
@@ -167,7 +169,8 @@ def dashboard():
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
         func.extract('month', Transaction.transaction_date) == current_month,
-        func.extract('year', Transaction.transaction_date) == current_year
+        func.extract('year', Transaction.transaction_date) == current_year,
+        Transaction.affects_balance == True
     ).group_by(transaction_categories.c.category_id)
     
     spending_by_category = {row[0]: row[1] for row in db.session.execute(expenses_by_category_stmt).all()}
@@ -291,20 +294,13 @@ def transactions():
 @main_bp.route('/add_transaction', methods=['GET', 'POST'])
 @login_required
 def add_transaction():
-    # --- THIS IS THE FIX ---
-    # First, check if the user has any accounts at all using a direct query.
-    # This must be done before we try to use the form object.
     if not db.session.execute(select(Account).filter_by(user_id=current_user.id)).first():
         flash('You must create an account before adding a transaction.', 'warning')
         return redirect(url_for('main.add_account'))
-    # --- END OF FIX ---
 
     form = TransactionForm()
     
     if form.validate_on_submit():
-        # --- THIS IS THE FIX ---
-        # The constructor now only has one `transaction_date` argument,
-        # which correctly uses the data from the new form field.
         new_transaction = Transaction(
             description=form.description.data,
             amount=form.amount.data,
@@ -312,19 +308,24 @@ def add_transaction():
             notes=form.notes.data,
             user_id=current_user.id,
             account_id=form.account.data.id,
-            transaction_date=form.transaction_date.data
+            transaction_date=form.transaction_date.data,
+            affects_balance = form.affects_balance.data if form.transaction_type.data == 'expense' else True
         )
+        
+        # --- THIS IS THE FIX ---
+        # The balance is now updated only once, correctly respecting the flag.
+        if new_transaction.affects_balance:
+            account = form.account.data
+            if new_transaction.transaction_type == 'income':
+                account.balance += new_transaction.amount
+            else:
+                account.balance -= new_transaction.amount
+        # --- END OF FIX ---
         
         if form.category.data:
             new_transaction.categories.append(form.category.data)
 
         process_tags(new_transaction, form.tags.data)
-        
-        account = form.account.data
-        if new_transaction.transaction_type == 'income':
-            account.balance += new_transaction.amount
-        else:
-            account.balance -= new_transaction.amount
 
         db.session.add(new_transaction)
         log_activity(f"Added transaction: '{new_transaction.description}'")
@@ -333,68 +334,77 @@ def add_transaction():
         flash('Transaction added successfully!', 'success')
         return redirect(url_for('main.dashboard'))
 
-    # For a GET request or a failed validation, render the form template
+    # For a GET request, pre-fill the date/time with the current time
+    if request.method == 'GET':
+        form.transaction_date.data = datetime.now(timezone.utc)
+
     return render_template('add_edit_transaction.html', form=form, title='Add Transaction')
 
 @main_bp.route('/edit_transaction/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_transaction(transaction_id):
-    transaction = db.session.get(Transaction, transaction_id)
-    if not transaction or transaction.user_id != current_user.id:
-        abort(404)
+    transaction = db.get_or_404(Transaction, transaction_id)
+    if transaction.user_id != current_user.id:
+        abort(403)
+
+    # Store the transaction's original state before any changes are made.
+    original_amount = transaction.amount
+    original_type = transaction.transaction_type
+    original_affects_balance = transaction.affects_balance
+    original_account = transaction.account
     
-    # Pass the existing transaction object to pre-populate the form
     form = TransactionForm(obj=transaction)
+    # Your logic to populate form choices for account/category is correct
     
-    # Manually set the dropdown default values for the GET request
-    if request.method == 'GET':
-        form.account.data = transaction.account
-        if transaction.categories:
-            form.category.data = transaction.categories[0]
-        form.tags.data = ', '.join([tag.name for tag in transaction.tags])
-
     if form.validate_on_submit():
-        # Revert old balance
-        original_account = db.session.get(Account, transaction.account_id)
-        if original_account:
-            if transaction.transaction_type == 'income': original_account.balance -= transaction.amount
-            else: original_account.balance += transaction.amount
+        # --- THIS IS THE CORRECTED, ROBUST BALANCE LOGIC ---
 
-        # Populate the transaction object with updated data from the form
+        # 1. Revert the effect of the original transaction IF it affected the balance.
+        if original_affects_balance and original_account:
+            if original_type == 'income':
+                original_account.balance -= original_amount
+            else: # expense
+                original_account.balance += original_amount
+
+        # 2. Update the transaction object with all the new data from the form.
         transaction.description = form.description.data
         transaction.amount = form.amount.data
         transaction.transaction_type = form.transaction_type.data
         transaction.transaction_date = form.transaction_date.data
         transaction.notes = form.notes.data
         transaction.account_id = form.account.data.id
-
-        # Update new balance
-        new_account = form.account.data
-        if new_account:
-            if transaction.transaction_type == 'income': new_account.balance += transaction.amount
-            else: new_account.balance -= transaction.amount
+        # Set affects_balance based on the form, only if it's an expense.
+        transaction.affects_balance = form.affects_balance.data if form.transaction_type.data == 'expense' else True
+        
+        # 3. Apply the effect of the NEW transaction state to the (potentially new) account.
+        new_account = db.session.get(Account, form.account.data.id)
+        if transaction.affects_balance and new_account:
+            if transaction.transaction_type == 'income':
+                new_account.balance += transaction.amount
+            else: # expense
+                new_account.balance -= transaction.amount
+        # --- END OF CORRECTED LOGIC ---
             
         # Update relationships
+        process_tags(transaction, form.tags.data) # This helper handles tags correctly
         transaction.categories.clear()
         if form.category.data:
             transaction.categories.append(form.category.data)
-
-        transaction.tags.clear()
-        process_tags(transaction, form.tags.data)
         
         log_activity(f"Updated transaction: '{transaction.description}'")
         db.session.commit()
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('main.transactions'))
     
+    # Pre-populate the form for the GET request
     if request.method == 'GET':
         form.account.data = transaction.account
         if transaction.categories:
             form.category.data = transaction.categories[0]
         form.tags.data = ', '.join([tag.name for tag in transaction.tags])
-        # --- PRE-POPULATE THE DATETIME FIELD ---
         form.transaction_date.data = transaction.transaction_date
-        # --- END ---
+        # Pre-populate the checkbox
+        form.affects_balance.data = transaction.affects_balance
 
     return render_template('add_edit_transaction.html', form=form, title='Edit Transaction')
 
@@ -499,13 +509,13 @@ def import_transactions():
             return redirect(request.url)
 
         try:
-            csv_reader = csv.reader(codecs.iterdecode(file, 'utf-8'))
+            stream = codecs.iterdecode(file.stream, 'utf-8')
+            csv_reader = csv.reader(stream)
             header = next(csv_reader) # Skip header row
             
             transactions_to_add, accounts_to_update, errors = [], {}, []
             success_count = 0
 
-            # Pre-fetch user's data for efficient lookups
             user_accounts = {(acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars()}
             user_categories = {cat.name.lower(): cat for cat in db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars()}
             user_tags = {tag.name.lower(): tag for tag in db.session.execute(select(Tag).filter_by(user_id=current_user.id)).scalars()}
@@ -513,25 +523,38 @@ def import_transactions():
             for i, row in enumerate(csv_reader):
                 row_num = i + 2
                 
-                # --- THIS IS THE CORRECTED UNPACKING LOGIC ---
+                # --- THIS IS THE CORRECTED UNPACKING AND PARSING LOGIC ---
                 try:
-                    # It now correctly expects exactly 10 columns
-                    date_str, time_str, desc, amount_str, trans_type, acc_name, acc_type, cats_str, tags_str, notes = row
+                    # 1. Unpack the 10 columns from the CSV row
+                    date_str, time_str, desc, amount_str, dr_cr_str, account_str, is_expense_str, cats_str, tags_str, notes = row
                 except ValueError:
                     errors.append(f"Row {row_num}: Invalid number of columns. Expected 10, got {len(row)}.")
                     continue
-                
+
+                # 2. Parse Date, Time, and Amount
                 try:
-                    # Combine and parse date/time, and parse the amount
-                    combined_datetime_str = f"{date_str} {time_str}"
+                    combined_datetime_str = f"{date_str.strip()} {time_str.strip()}"
                     trans_date = datetime.strptime(combined_datetime_str, '%Y-%m-%d %I:%M %p')
                     amount = decimal.Decimal(amount_str)
                 except (ValueError, decimal.InvalidOperation):
                     errors.append(f"Row {row_num}: Invalid date/time ('{date_str} {time_str}') or amount ('{amount_str}').")
                     continue
+                
+                # 3. Derive internal values from CSV strings
+                trans_type = 'expense' if dr_cr_str.strip().upper() == 'DR' else 'income'
+                affects_balance = False if trans_type == 'expense' and is_expense_str.strip().lower() == 'no' else True
+                
+                # 4. Parse the combined Account string using Regex
+                acc_name, acc_type = None, None
+                match = re.match(r'^(.*) \((.*)\)$', account_str.strip())
+                if match:
+                    acc_name, acc_type = match.groups()
+                else:
+                    errors.append(f"Row {row_num}: Could not parse account format '{account_str}'. Expected 'Name (Type)'.")
+                    continue
                 # --- END OF CORRECTED LOGIC ---
 
-                account = user_accounts.get((acc_name.strip().lower(), acc_type.strip().lower()))
+                account = user_accounts.get((acc_name.lower(), acc_type.lower()))
                 if not account:
                     errors.append(f"Row {row_num}: Account '{acc_name}' ({acc_type}) not found.")
                     continue
@@ -542,7 +565,8 @@ def import_transactions():
                     transaction_date=trans_date,
                     description=desc.strip(),
                     amount=amount,
-                    transaction_type=trans_type.strip().lower(),
+                    transaction_type=trans_type,
+                    affects_balance=affects_balance,
                     account_id=account.id,
                     notes=notes.strip()
                 )
@@ -571,11 +595,12 @@ def import_transactions():
                 
                 transactions_to_add.append(new_trans)
                 
-                # Balance update logic
-                balance_change = amount if new_trans.transaction_type == 'income' else -amount
-                if account.id not in accounts_to_update:
-                    accounts_to_update[account.id] = {'account': account, 'change': decimal.Decimal(0)}
-                accounts_to_update[account.id]['change'] += balance_change
+                # Update balance only if the flag is set
+                if affects_balance:
+                    balance_change = amount if trans_type == 'income' else -amount
+                    if account.id not in accounts_to_update:
+                        accounts_to_update[account.id] = {'account': account, 'change': decimal.Decimal(0)}
+                    accounts_to_update[account.id]['change'] += balance_change
                 
                 success_count += 1
             
@@ -607,6 +632,7 @@ def validate_import_file():
     """
     Analyzes an uploaded CSV file for common errors and returns a
     structured JSON report without actually importing the data.
+    This version matches the final 10-column import format.
     """
     if 'transaction_file' not in request.files or not request.files['transaction_file'].filename:
         return jsonify({"error": "No file selected."}), 400
@@ -618,61 +644,55 @@ def validate_import_file():
     validation_report = {
         "valid_rows": [],
         "invalid_rows": [],
-        "summary": {
-            "total_rows": 0,
-            "valid_count": 0,
-            "invalid_count": 0
-        }
+        "summary": { "total_rows": 0, "valid_count": 0, "invalid_count": 0 }
     }
     
     try:
-        # Pre-fetch user's data once for efficient lookups
-        user_accounts = { (acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars() }
-        # Note: We are not checking categories here, as the main import creates them automatically.
-
-        # Use a temporary stream to avoid saving the file
+        # Pre-fetch user's accounts for efficient lookups
+        user_accounts = {(acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars()}
+        
         stream = codecs.iterdecode(file.stream, 'utf-8')
         csv_reader = csv.reader(stream)
         
         try:
-            header = next(csv_reader) # Read/skip header
+            header = next(csv_reader)
         except StopIteration:
             return jsonify({"error": "CSV file is empty or missing a header."}), 400
 
         for i, row in enumerate(csv_reader):
-            row_num = i + 2 # Account for header and 0-based index
+            row_num = i + 2
             errors = []
             validation_report["summary"]["total_rows"] += 1
             
-            # 1. Check column count
+            # 1. Check for the correct 10-column format
             if len(row) != 10:
                 errors.append(f"Invalid column count. Expected 10, got {len(row)}.")
                 validation_report["invalid_rows"].append({"row_number": row_num, "data": row, "errors": errors})
                 validation_report["summary"]["invalid_count"] += 1
                 continue
             
-            date_str, time_str, desc, amount_str, trans_type, acc_name, acc_type, cats_str, tags_str, notes = row
+            date_str, time_str, desc, amount_str, dr_cr_str, account_str, is_expense_str, cats_str, tags_str, notes = row
 
-            # 2. Validate date and time format
+            # 2. Validate date, time, and amount
             try:
-                combined_datetime_str = f"{date_str.strip()} {time_str.strip()}"
-                datetime.strptime(combined_datetime_str, '%Y-%m-%d %I:%M %p')
-            except ValueError:
-                errors.append(f"Invalid date or time format. Use 'YYYY-MM-DD' and 'HH:MM AM/PM'.")
-            
-            # 3. Validate amount
-            try:
+                datetime.strptime(f"{date_str.strip()} {time_str.strip()}", '%Y-%m-%d %I:%M %p')
                 decimal.Decimal(amount_str)
-            except decimal.InvalidOperation:
-                errors.append(f"Amount '{amount_str}' is not a valid number.")
+            except (ValueError, decimal.InvalidOperation):
+                errors.append(f"Invalid date/time ('{date_str} {time_str}') or amount ('{amount_str}').")
+            
+            # 3. Validate DR/CR column
+            if dr_cr_str.strip().upper() not in ['DR', 'CR']:
+                errors.append(f"DR/CR column must be 'DR' or 'CR'.")
 
-            # 4. Validate transaction type
-            if trans_type.strip().lower() not in ['income', 'expense']:
-                errors.append(f"Invalid transaction type: '{trans_type}'. Must be 'income' or 'expense'.")
-
-            # 5. Validate that the account exists
-            if not user_accounts.get((acc_name.strip().lower(), acc_type.strip().lower())):
-                errors.append(f"Account '{acc_name}' with type '{acc_type}' not found.")
+            # 4. Validate that the account can be parsed and exists
+            acc_name, acc_type = None, None
+            match = re.match(r'^(.*) \((.*)\)$', account_str.strip())
+            if match:
+                acc_name, acc_type = match.groups()
+                if not user_accounts.get((acc_name.lower(), acc_type.lower())):
+                    errors.append(f"Account '{acc_name}' ({acc_type}) not found.")
+            else:
+                errors.append(f"Could not parse account format '{account_str}'. Expected 'Name (Type)'.")
             
             # Finalize row validation
             if errors:
@@ -1205,7 +1225,8 @@ def calendar_view():
     ).where(
         Transaction.user_id == current_user.id,
         func.extract('month', Transaction.transaction_date) == month,
-        func.extract('year', Transaction.transaction_date) == year
+        func.extract('year', Transaction.transaction_date) == year,
+        Transaction.affects_balance == True
     ).distinct()
     
     active_days = {day[0] for day in db.session.execute(stmt).all()}
@@ -1272,7 +1293,8 @@ def yearly_report(year):
         func.sum(Transaction.amount).label('total_amount')
     ).where(
         Transaction.user_id == current_user.id,
-        func.extract('year', Transaction.transaction_date) == year
+        func.extract('year', Transaction.transaction_date) == year,
+        Transaction.affects_balance == True
     ).group_by(
         func.extract('month', Transaction.transaction_date),
         Transaction.transaction_type
@@ -1342,7 +1364,8 @@ def budget_report():
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
         func.extract('month', Transaction.transaction_date) == selected_month,
-        func.extract('year', Transaction.transaction_date) == selected_year
+        func.extract('year', Transaction.transaction_date) == selected_year,
+        Transaction.affects_balance == True
     ).group_by(transaction_categories.c.category_id)
     
     spending_by_category = {row[0]: row[1] for row in db.session.execute(expenses_stmt).all()}
@@ -1489,23 +1512,31 @@ def export_transactions():
         # Generate the CSV file in memory
         string_io = io.StringIO()
         csv_writer = csv.writer(string_io)
-        csv_writer.writerow(['Date', 'Time', 'Description', 'Amount', 'Type', 'Account Name', 'Account Type', 'Categories', 'Tags', 'Notes'])
+        csv_writer.writerow([
+            'Date', 'Time', 'Description', 'Amount', 'DR/CR', 'Account',
+            'Is Expense?', 'Categories', 'Tags', 'Notes'
+        ])
 
         for t in transactions_to_export:
             category_names = ';'.join(sorted([c.name for c in t.categories]))
             tag_names = ';'.join(sorted([tag.name for tag in t.tags]))
+            dr_cr = 'DR' if t.transaction_type == 'expense' else 'CR'
+            is_expense = ''
+            if t.transaction_type == 'expense':
+                is_expense = 'Yes' if t.affects_balance else 'No'
             csv_writer.writerow([
                 t.transaction_date.strftime('%Y-%m-%d'),
                 t.transaction_date.strftime('%I:%M %p'),
                 t.description,
                 t.amount,
-                t.transaction_type,
-                t.account.name if t.account else '',
-                t.account.account_type if t.account else '',
+                dr_cr,
+                f"{t.account.name} ({t.account.account_type})" if t.account else '',
+                is_expense,
                 category_names,
                 tag_names,
                 t.notes or ''
             ])
+
             
         output = string_io.getvalue()
         filename = f"transactions_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
@@ -1539,7 +1570,8 @@ def transaction_summary_api():
     ).where(
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
-        Transaction.transaction_date.between(start_date, end_date_inclusive)
+        Transaction.transaction_date.between(start_date, end_date_inclusive),
+        Transaction.affects_balance == True
     ).group_by(Category.name)
     
     summary = db.session.execute(stmt).all()
@@ -1569,7 +1601,8 @@ def daily_expense_trend():
     ).where(
         Transaction.user_id == current_user.id,
         Transaction.transaction_type == 'expense',
-        Transaction.transaction_date.between(start_date, end_date_inclusive)
+        Transaction.transaction_date.between(start_date, end_date_inclusive),
+        Transaction.affects_balance == True
     ).group_by(
         func.cast(Transaction.transaction_date, db.Date)
     ).order_by(
@@ -1653,7 +1686,8 @@ def financial_trend():
         db.func.sum(Transaction.amount)
     ).filter(
         Transaction.user_id == current_user.id,
-        Transaction.transaction_date.between(start_date, end_date_inclusive)
+        Transaction.transaction_date.between(start_date, end_date_inclusive),
+        Transaction.affects_balance == True
     ).group_by(
         db.func.cast(Transaction.transaction_date, db.Date),
         Transaction.transaction_type
