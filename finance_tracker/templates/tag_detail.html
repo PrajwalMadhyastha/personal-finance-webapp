@@ -32,7 +32,11 @@
         <tbody>
             {% for transaction in transactions %}
             <tr>
-                <td>{{ transaction.transaction_date.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    <span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
+                        {{ transaction.transaction_date.strftime('%b %d, %Y') }}
+                    </span>
+                </td>
                 <td>{{ transaction.description }}</td>
                 <td>{{ transaction.account.name if transaction.account else 'N/A' }}</td>
                 <td>

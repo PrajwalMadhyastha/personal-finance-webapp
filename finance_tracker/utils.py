@@ -65,3 +65,13 @@ def parse_date_range(request_args):
         end_date_str = end_date.strftime('%Y-%m-%d')
 
     return start_date, end_date, start_date_str, end_date_str
+
+def format_datetime(value):
+    """
+    A custom Jinja2 filter to format a datetime object into an
+    ISO 8601 string, which is perfect for JavaScript to parse.
+    """
+    if value is None:
+        return ""
+    # Outputs a string like "2025-06-17T12:30:00Z"
+    return value.isoformat()

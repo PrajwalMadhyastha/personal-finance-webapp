@@ -24,7 +24,11 @@
         <tbody>
             {% for trans in transactions %}
             <tr>
-                <td>{{ trans.transaction_date.strftime('%Y-%m-%d') }}</td>
+                <td>
+                     <span class="local-datetime" datetime="{{ trans.transaction_date | datetimeformat }}">
+                        {{ trans.transaction_date.strftime('%b %d, %Y') }}
+                    </span>
+                </td>
                 <td>{{ trans.description }}</td>
                 <td>{{ trans.account.name }}</td>
                 <td class="{{ trans.transaction_type }}" style="text-align: right;">

@@ -55,6 +55,13 @@
                     <small style="color: var(--pico-color-red-500);">{{ error }}</small>
                 {% endfor %}
             </div>
+            <div>
+                {{ form.transaction_date.label }}
+                {{ form.transaction_date() }}
+                {% for error in form.transaction_date.errors %}
+                    <small class="error-text">{{ error }}</small>
+                {% endfor %}
+            </div>
             <div id="category-field-container">
                 {{ form.category.label }}
                 {{ form.category() }}

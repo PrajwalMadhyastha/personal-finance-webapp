@@ -126,7 +126,11 @@
                                 {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
                                 ₹{{ "%.2f"|format(transaction.amount) }}
                             </td>
-                            <td><small>{{ transaction.transaction_date.strftime('%b %d, %Y') }}</small></td>
+                            <td>
+                            <small class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
+                                {{ transaction.transaction_date.strftime('%b %d, %Y') }}
+                            </small>
+                        </td>
                         </tr>
                     {% endfor %}
                     </tbody>
@@ -143,7 +147,9 @@
                     {% for log in activity_logs %}
                         <li>
                             {{ log.description }}<br>
-                            <small><em>{{ log.timestamp.strftime('%b %d, %Y at %I:%M %p') }} UTC</em></small>
+                            <small><em class="local-datetime" datetime="{{ log.timestamp | datetimeformat }}">
+                                {{ log.timestamp.strftime('%b %d, %Y') }} <!-- Show a fallback date -->
+                            </em></small>
                         </li>
                     {% endfor %}
                 </ul>
@@ -156,6 +162,7 @@
 {% endblock %}
 
 {% block scripts %}
+{{ super() }}
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     let categoryChart, dailyExpenseChart, financialTrendChart; // Hold all chart instances

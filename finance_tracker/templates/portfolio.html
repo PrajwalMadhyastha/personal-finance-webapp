@@ -106,7 +106,11 @@
             <tbody>
                 {% for trans in transactions %}
                 <tr>
-                    <td>{{ trans.transaction_date.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <span class="local-datetime" datetime="{{ trans.transaction_date | datetimeformat }}">
+                            {{ trans.transaction_date.strftime('%b %d, %Y') }}
+                        </span>
+                    </td>
                     <td><strong>{{ trans.asset.ticker_symbol }}</strong></td>
                     <td class="{{ 'income' if trans.transaction_type == 'buy' else 'expense' }}">{{ trans.transaction_type|capitalize }}</td>
                     <!-- FIX: Quantity as an integer -->

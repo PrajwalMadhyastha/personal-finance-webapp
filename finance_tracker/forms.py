@@ -1,13 +1,14 @@
 # finance_tracker/forms.py
 
 from flask_wtf import FlaskForm
-from wtforms import StringField, DecimalField, SelectField, TextAreaField, SubmitField, RadioField
+from wtforms import StringField, DecimalField, SelectField, TextAreaField, SubmitField, RadioField, DateTimeField
 # 1. Import ValidationError here
 from wtforms.validators import DataRequired, Length, NumberRange, Optional, ValidationError
 from wtforms_sqlalchemy.fields import QuerySelectField
 from flask_login import current_user
 from .models import Account, Category, db
 from sqlalchemy import select
+from datetime import datetime
 
 def get_user_accounts():
     return db.session.execute(select(Account).filter_by(user_id=current_user.id).order_by(Account.name)).scalars()
@@ -45,6 +46,13 @@ class TransactionForm(FlaskForm):
         allow_blank=True,
         blank_text='-- Select a Category --',
         validators=[Optional()]
+    )
+    transaction_date = DateTimeField(
+        'Date & Time', 
+        format='%Y-%m-%dT%H:%M', 
+        default=datetime.utcnow, 
+        validators=[DataRequired()],
+        render_kw={'class': 'flatpickr-datetime'} # ADD THIS
     )
     tags = StringField(
         'Tags (comma-separated)', 

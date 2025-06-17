@@ -38,6 +38,6 @@ EXPOSE 5000
 # --- THE CORRECTED CMD INSTRUCTION ---
 # We have removed the '--reload' flag to ensure stability.
 # Docker-compose handles the environment variables correctly.
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "wsgi:app"]
+CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "120", "wsgi:app"]
 
 LABEL org.opencontainers.image.source="https://github.com/prajwalmadhyastha/personal-finance-webapp"

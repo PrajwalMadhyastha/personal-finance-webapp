@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <title>{% block title %}My Finance App{% endblock %}</title>
     <style>
         /* --- General App Styles --- */
@@ -98,7 +99,47 @@
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    {% block scripts %}{% endblock %}
+    {% block scripts %}
+        <!-- You might have other scripts here, like for Chart.js -->
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        
+        <!-- ADD THIS SCRIPT FOR LOCAL TIME FORMATTING -->
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Find all elements that need local time formatting
+            const timeElements = document.querySelectorAll('.local-datetime');
+
+            timeElements.forEach(function(element) {
+                // Get the UTC time string from the 'datetime' attribute
+                const utcDateString = element.getAttribute('datetime');
+                if (utcDateString) {
+                    const date = new Date(utcDateString);
+                    
+                    // Use the browser's built-in formatting to show the date and time
+                    // in the user's local timezone (e.g., IST).
+                    const options = {
+                        year: 'numeric', month: 'long', day: 'numeric',
+                        hour: 'numeric', minute: '2-digit',
+                        hour12: true
+                    };
+                    element.textContent = date.toLocaleString(undefined, options);
+                }
+    });
+});
+        </script>
+        <script>
+          document.addEventListener('DOMContentLoaded', function() {
+              // Find all elements with our special class
+              flatpickr(".flatpickr-datetime", {
+                  enableTime: true, // Enable the time picker
+                  dateFormat: "Y-m-d\\TH:i", // The format our backend expects
+                  altInput: true, // Show a user-friendly format to the user
+                  altFormat: "F j, Y at h:i K", // e.g., "June 17, 2025 at 08:30 PM"
+              });
+          });
+      </script>
+    {% endblock %}
 
 </body>
 </html>

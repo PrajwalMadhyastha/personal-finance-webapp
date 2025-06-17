@@ -29,7 +29,7 @@
             </div>
             <div>
                 <label for="transaction_date">Transaction Date</label>
-                <input type="date" id="transaction_date" name="transaction_date" value="{{ trans.transaction_date.strftime('%Y-%m-%d') }}" required>
+                <input type="datetime-local" id="transaction_date" name="transaction_date" class="flatpickr-datetime" required>
             </div>
         </div>
         <div class="grid">

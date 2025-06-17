@@ -24,18 +24,17 @@ def create_app(config_name='development'):
     """Create and configure an instance of the Flask application."""
     app = Flask(__name__, instance_relative_config=True)
 
-    # Load base config from the config object
     config_object = config_by_name.get(config_name)
     app.config.from_object(config_object)
+    
+    # --- THIS IS THE FIX ---
+    # We move the import inside the function to break the circular import.
+    from .utils import format_datetime
+    app.jinja_env.filters['datetimeformat'] = format_datetime
+    # --- END OF FIX ---
 
-    # --- THIS IS THE CORRECTED LOGIC ---
-    # The 'testing' config already sets a 'sqlite:///' URI.
-    # We only need to build a new URI if we are NOT in testing mode.
     if config_name != 'testing':
-        # First, check for a single DATABASE_URL (used by cloud deployments).
         db_uri = os.getenv('DATABASE_URL')
-        
-        # If DATABASE_URL is not found, build the URI for local development.
         if not db_uri:
             db_server = os.getenv('DB_SERVER')
             db_name = os.getenv('DB_NAME')
@@ -52,10 +51,7 @@ def create_app(config_name='development'):
                 f"driver={urllib.parse.quote_plus(driver_name)}"
                 f"&TrustServerCertificate=yes"
             )
-        
-        # Set the final, determined URI in the app's configuration.
         app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
-    # --- END OF CORRECTED LOGIC ---
 
     # Initialize extensions with the app
     db.init_app(app)

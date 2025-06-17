@@ -302,8 +302,9 @@ def add_transaction():
     form = TransactionForm()
     
     if form.validate_on_submit():
-        # This block now only runs on a successful POST with valid data
-        
+        # --- THIS IS THE FIX ---
+        # The constructor now only has one `transaction_date` argument,
+        # which correctly uses the data from the new form field.
         new_transaction = Transaction(
             description=form.description.data,
             amount=form.amount.data,
@@ -311,7 +312,7 @@ def add_transaction():
             notes=form.notes.data,
             user_id=current_user.id,
             account_id=form.account.data.id,
-            transaction_date=datetime.now(timezone.utc)
+            transaction_date=form.transaction_date.data
         )
         
         if form.category.data:
@@ -363,6 +364,7 @@ def edit_transaction(transaction_id):
         transaction.description = form.description.data
         transaction.amount = form.amount.data
         transaction.transaction_type = form.transaction_type.data
+        transaction.transaction_date = form.transaction_date.data
         transaction.notes = form.notes.data
         transaction.account_id = form.account.data.id
 
@@ -384,6 +386,15 @@ def edit_transaction(transaction_id):
         db.session.commit()
         flash('Transaction updated successfully!', 'success')
         return redirect(url_for('main.transactions'))
+    
+    if request.method == 'GET':
+        form.account.data = transaction.account
+        if transaction.categories:
+            form.category.data = transaction.categories[0]
+        form.tags.data = ', '.join([tag.name for tag in transaction.tags])
+        # --- PRE-POPULATE THE DATETIME FIELD ---
+        form.transaction_date.data = transaction.transaction_date
+        # --- END ---
 
     return render_template('add_edit_transaction.html', form=form, title='Edit Transaction')
 
@@ -1740,6 +1751,7 @@ def run_recurring_now(recurring_id):
 @login_required
 def add_investment():
     if request.method == 'POST':
+        datetime_str = request.form.get('transaction_date')
         ticker = request.form.get('ticker_symbol', '').strip().upper()
         trans_type = request.form.get('transaction_type')
         quantity_str = request.form.get('quantity')
@@ -1775,7 +1787,7 @@ def add_investment():
             transaction_type=trans_type,
             quantity=decimal.Decimal(quantity_str),
             price_per_unit=decimal.Decimal(price_str),
-            transaction_date=datetime.strptime(date_str, '%Y-%m-%d')
+            transaction_date=datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
         )
 
         db.session.add(new_investment_trans)
