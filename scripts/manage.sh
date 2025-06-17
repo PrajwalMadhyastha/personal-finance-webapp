@@ -102,6 +102,7 @@ case "$1" in
     start-app)
         echo -e "${GREEN}--- Building and starting webapp... ---${NC}"
         if [[ " ${@} " =~ " --build " ]]; then
+            $COMPOSER stop webapp
             $COMPOSER up -d --build webapp
         else
             $COMPOSER up -d webapp

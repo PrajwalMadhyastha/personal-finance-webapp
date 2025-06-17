@@ -3,55 +3,59 @@
 {% block title %}Financial Reports{% endblock %}
 
 {% block content %}
-
-    <article>
-        <h4>Budget vs. Actual Spending</h4>
-        <p>Drill down into a specific month to see how your spending compares to the budgets you set for each category.</p>
-        <footer>
-            <a href="{{ url_for('main.budget_report') }}" role="button">View Budget Report</a>
-        </footer>
-    </article>
-    <article>
+<article>
+    <header>
         <hgroup>
             <h2>Financial Reports</h2>
-            <p>Select a report to view.</p>
+            <p>Select a report to analyze your financial data.</p>
         </hgroup>
-        
-        <h4>View Yearly Summary</h4>
-        <form id="yearly-report-form">
-            <div class="grid">
-                <div class="two-thirds">
-                    <label for="year-select">Select a Year</label>
-                    <select id="year-select" name="year">
-                        {% set current_year = now.year %}
-                        {% for i in range(5) %}
-                        <option value="{{ current_year - i }}">{{ current_year - i }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="one-third">
-                    <label>&nbsp;</label>
-                    <button type="submit">View Yearly Report</button>
-                </div>
-            </div>
-        </form>
-    </article>
+    </header>
 
-    <hr>
-
+    <!-- Report Selection Grid -->
     <div class="grid">
+        <article>
+            <h5>Budget vs. Actual Spending</h5>
+            <p>Compare spending to your monthly budgets.</p>
+            <a href="{{ url_for('main.budget_report') }}" role="button">View Budget Report</a>
+        </article>
+        <article>
+            <h5>Yearly Summary</h5>
+            <p>See income and expenses month by month.</p>
+            <form id="yearly-report-form">
+                <label for="year-select">Select a Year</label>
+                <select id="year-select" name="year">
+                    {% set current_year = now.year %}
+                    {% for i in range(5) %}
+                    <option value="{{ current_year - i }}">{{ current_year - i }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">View Yearly Report</button>
+            </form>
+        </article>
+        <article>
+            <h5>Net Worth</h5>
+            <p>View your complete financial snapshot.</p>
+            <a href="{{ url_for('main.net_worth_report') }}" role="button">View Net Worth</a>
+        </article>
+    </div>
+</article>
+
+<article>
+    <header class="grid">
         <div>
-            <h2>Expense Breakdown by Month</h2>
-            <p>A summary of your spending, grouped by category for each month.</p>
+            <hgroup>
+                <h2>Expense Breakdown by Month</h2>
+                <p>A summary of your spending, grouped by category for each month.</p>
+            </hgroup>
         </div>
         <div style="text-align: right;">
-            <a href="{{ url_for('main.export_transactions') }}" role="button" class="outline">Export All Transactions as CSV</a>
+            <a href="{{ url_for('main.export_transactions') }}" role="button" class="secondary outline">Export All Transactions</a>
         </div>
-    </div>
+    </header>
 
     {% if monthly_summary %}
         {% for month, categories in monthly_summary.items() %}
-            <details open>
+            <details>
                 <summary><strong>{{ month }}</strong></summary>
                 <ul>
                     {% for category_name, total_amount in categories %}
@@ -63,8 +67,12 @@
             </details>
         {% endfor %}
     {% else %}
-        <p>No expense data available to generate reports.</p>
+        <!-- Improved Empty State Message -->
+        <div style="text-align: center; padding: 2rem;">
+            <p>No expense data available to generate reports.</p>
+        </div>
     {% endif %}
+</article>
 {% endblock %}
 
 

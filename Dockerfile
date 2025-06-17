@@ -19,12 +19,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# --- THIS IS THE CRITICAL FIX ---
-# Step 5: Add the SQL Server tools to the system's PATH environment variable
+# Add the SQL Server tools to the system's PATH environment variable
 ENV PATH="/opt/mssql-tools18/bin:${PATH}"
 
-# --- Verification Step ---
-# Let's confirm the driver and tools are registered and findable during the build
+# Verification Step
 RUN echo "--- Verifying installations ---" && \
     odbcinst -q -d && \
     which sqlcmd
@@ -36,6 +34,10 @@ COPY . .
 
 # --- Final Configuration ---
 EXPOSE 5000
+
+# --- THE CORRECTED CMD INSTRUCTION ---
+# We have removed the '--reload' flag to ensure stability.
+# Docker-compose handles the environment variables correctly.
 CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "wsgi:app"]
 
 LABEL org.opencontainers.image.source="https://github.com/prajwalmadhyastha/personal-finance-webapp"

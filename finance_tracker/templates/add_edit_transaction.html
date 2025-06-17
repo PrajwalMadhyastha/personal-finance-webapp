@@ -4,12 +4,19 @@
 
 {% block content %}
 <article>
-    <hgroup>
-        <h2>{{ title }}</h2>
-        {% if form.description.data %}
-        <p>Updating details for '{{ form.description.data }}'</p>
-        {% endif %}
-    </hgroup>
+    <!-- START: Improved Header -->
+    <header class="grid">
+        <div>
+            <hgroup>
+                <h2>{{ title }}</h2>
+                <p>Enter the details for your income or expense.</p>
+            </hgroup>
+        </div>
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.transactions') }}" role="button" class="secondary outline">‹ Back to Transactions</a>
+        </div>
+    </header>
+    <!-- END: Improved Header -->
     
     <form method="POST" action="">
         {{ form.hidden_tag() }}
@@ -26,10 +33,10 @@
                 </fieldset>
             </div>
             <div>
-                {{ form.amount.label }}
+                {{ form.amount.label }} (₹)
                 {{ form.amount(placeholder="e.g., 50.75") }}
                 {% for error in form.amount.errors %}
-                    <small class="error-text">{{ error }}</small>
+                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
                 {% endfor %}
             </div>
         </div>
@@ -37,7 +44,7 @@
         {{ form.description.label }}
         {{ form.description(placeholder="e.g., Coffee with friend") }}
         {% for error in form.description.errors %}
-            <small class="error-text">{{ error }}</small>
+            <small style="color: var(--pico-color-red-500);">{{ error }}</small>
         {% endfor %}
 
         <div class="grid">
@@ -45,14 +52,14 @@
                 {{ form.account.label }}
                 {{ form.account() }}
                  {% for error in form.account.errors %}
-                    <small class="error-text">{{ error }}</small>
+                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
                 {% endfor %}
             </div>
             <div id="category-field-container">
                 {{ form.category.label }}
                 {{ form.category() }}
                 {% for error in form.category.errors %}
-                    <small class="error-text">{{ error }}</small>
+                    <small style="color: var(--pico-color-red-500);">{{ error }}</small>
                 {% endfor %}
             </div>
         </div>

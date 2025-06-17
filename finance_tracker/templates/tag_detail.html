@@ -3,10 +3,20 @@
 {% block title %}Transactions for '{{ tag_name }}'{% endblock %}
 
 {% block content %}
-    <hgroup>
-        <h2>Transactions Tagged With '{{ tag_name }}'</h2>
-        <p>A complete list of all income and expenses with this tag.</p>
-    </hgroup>
+<article>
+    <!-- START: Added Consistent Header -->
+    <header class="grid">
+        <div>
+            <hgroup>
+                <h2>Transactions Tagged With '{{ tag_name }}'</h2>
+                <p>A complete list of all income and expenses with this tag.</p>
+            </hgroup>
+        </div>
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.transactions') }}" role="button" class="secondary outline">‹ Back to All Transactions</a>
+        </div>
+    </header>
+    <!-- END: Added Consistent Header -->
 
     {% if transactions %}
     <table>
@@ -37,10 +47,8 @@
         </tbody>
     </table>
     {% else %}
-        <p>There are no transactions with this tag yet.</p>
+        <!-- Improved Empty State -->
+        <p style="text-align: center; padding: 2rem;">There are no transactions with this tag yet.</p>
     {% endif %}
-
-    <footer>
-        <a href="{{ url_for('main.transactions') }}" role="button" class="secondary outline">Back to All Transactions</a>
-    </footer>
+</article>
 {% endblock %}

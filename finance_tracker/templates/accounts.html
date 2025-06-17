@@ -3,48 +3,62 @@
 {% block title %}Your Accounts{% endblock %}
 
 {% block content %}
-    <div class="grid">
+<article>
+    <!-- The header with title and "Add New" button -->
+    <header class="grid">
         <div>
-            <h2>Your Accounts</h2>
+            <hgroup>
+                <h2>Your Accounts</h2>
+                <p>A list of all your financial accounts.</p>
+            </hgroup>
         </div>
         <div style="text-align: right;">
             <a href="{{ url_for('main.add_account') }}" role="button">Add New Account</a>
         </div>
-    </div>
+    </header>
 
+    <!-- This block checks if the 'accounts' list has items -->
     {% if accounts %}
-    <table>
-        <thead>
-            <tr>
-                <th>Account Name</th>
-                <th>Type</th>
-                <th style="text-align: right;">Current Balance</th>
-                <th style="text-align: center;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for account in accounts %}
+        <!-- If it does, it builds the table -->
+        <table>
+            <thead>
                 <tr>
-                    <td>
-                        <a href="{{ url_for('main.account_detail', account_id=account.id) }}">{{ account.name }}</a>
-                    </td>
-                    <td>{{ account.account_type }}</td>
-                    <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
-                    <td>
-                        <div style="display: flex; gap: 0.5rem; justify-content: center;">
-                            <a href="{{ url_for('main.edit_account', account_id=account.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
-                            <form action="{{ url_for('main.delete_account', account_id=account.id) }}" method="POST" style="margin-bottom: 0;">
-                                <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this account? This can only be done if there are no transactions linked to it.');">
-                                    Delete
-                                </button>
-                            </form>
-                        </div>
-                    </td>
+                    <th>Account Name</th>
+                    <th>Type</th>
+                    <th style="text-align: right;">Current Balance</th>
+                    <th style="text-align: center;">Actions</th>
                 </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {% for account in accounts %}
+                    <tr>
+                        <td>
+                            <a href="{{ url_for('main.account_detail', account_id=account.id) }}">{{ account.name }}</a>
+                        </td>
+                        <td>{{ account.account_type }}</td>
+                        <td style="text-align: right;">₹{{ "%.2f"|format(account.balance) }}</td>
+                        <td style="text-align: center;">
+                            <div style="display: flex; gap: 0.5rem; justify-content: center;">
+                                <a href="{{ url_for('main.edit_account', account_id=account.id) }}" class="secondary outline" role="button" style="margin-bottom: 0;">Edit</a>
+                                <form action="{{ url_for('main.delete_account', account_id=account.id) }}" method="POST" style="margin-bottom: 0;">
+                                    <button type="submit" class="contrast outline" onclick="return confirm('Are you sure you want to delete this account? This can only be done if there are no transactions linked to it.');">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     {% else %}
-        <p>You haven't set up any accounts yet. Add one to start tracking transactions.</p>
+        <!-- If the 'accounts' list is empty, it shows this helpful message -->
+        <div style="text-align: center; padding: 2rem; border: 1px dashed var(--muted-border-color); border-radius: var(--border-radius);">
+            <h4>No Accounts Found</h4>
+            <p>You haven't set up any accounts yet. Get started by adding one!</p>
+            <br>
+            <a href="{{ url_for('main.add_account') }}" role="button" class="contrast" style="width: auto;">Add Your First Account</a>
+        </div>
     {% endif %}
+</article>
 {% endblock %}

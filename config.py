@@ -19,22 +19,22 @@ class DevelopmentConfig(Config):
     # It's fine to have static config values here, but NOT logic that uses os.getenv()
     DEBUG = True
 
-    def __init__(self):
-        super().__init__()
+    # def __init__(self):
+    #     super().__init__()
         
-        # MOVE ALL ENVIRONMENT-DEPENDENT LOGIC INSIDE __init__
-        db_user = os.getenv('DB_USER')
-        db_password = os.getenv('DB_PASSWORD')
-        db_host = os.getenv('DB_HOST')
-        db_name = os.getenv('DB_NAME')
+    #     # MOVE ALL ENVIRONMENT-DEPENDENT LOGIC INSIDE __init__
+    #     db_user = os.getenv('DB_USER')
+    #     db_password = os.getenv('DB_PASSWORD')
+    #     db_host = os.getenv('DB_HOST')
+    #     db_name = os.getenv('DB_NAME')
 
-        # First, check if the variables exist
-        if not all([db_user, db_password, db_host, db_name]):
-            raise ValueError("One or more DB environment variables are not set for development.")
+    #     # First, check if the variables exist
+    #     if not all([db_user, db_password, db_host, db_name]):
+    #         raise ValueError("One or more DB environment variables are not set for development.")
 
-        # Now, perform the parsing and construct the URI
-        password_safe = urllib.parse.quote_plus(db_password)
-        self.SQLALCHEMY_DATABASE_URI = f"mssql+pyodbc://{db_user}:{password_safe}@{db_host}:1433/{db_name}?driver=ODBC+Driver+17+for+SQL+Server"
+    #     # Now, perform the parsing and construct the URI
+    #     password_safe = urllib.parse.quote_plus(db_password)
+    #     self.SQLALCHEMY_DATABASE_URI = f"mssql+pyodbc://{db_user}:{password_safe}@{db_host}:1433/{db_name}?driver=ODBC+Driver+17+for+SQL+Server"
 
 
 class TestingConfig(Config):

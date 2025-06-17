@@ -3,7 +3,11 @@
 {% block title %}Log In{% endblock %}
 
 {% block content %}
-    <h2>Log In</h2>
+<article>
+    <hgroup>
+        <h2>Log In</h2>
+        <p>Access your financial dashboard.</p>
+    </hgroup>
     <form method="POST" action="{{ url_for('main.login') }}">
         <input type="hidden" name="next" value="{{ next_page or '' }}">
         <label for="email">Email</label>
@@ -14,7 +18,9 @@
 
         <button type="submit">Log In</button>
     </form>
-    <p>
+    <hr>
+    <footer>
         Need an account? <a href="{{ url_for('main.register') }}">Register here</a>.
-    </p>
+    </footer>
+</article>
 {% endblock %}

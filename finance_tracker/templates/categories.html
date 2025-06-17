@@ -3,26 +3,39 @@
 {% block title %}Manage Categories{% endblock %}
 
 {% block content %}
-    <div class="grid">
-        <div>
-            <h2>Your Categories</h2>
-            {% if categories %}
-                <ul>
-                    {% for category in categories %}
-                        <li>{{ category.name }}</li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <p>You haven't created any categories yet.</p>
-            {% endif %}
+<article>
+    <hgroup>
+        <h2>Add a New Category</h2>
+        <p>Create a category to organize your expenses.</p>
+    </hgroup>
+    <form method="POST" action="{{ url_for('main.manage_categories') }}" class="grid">
+        <input type="text" id="name" name="name" placeholder="e.g., Groceries, Transportation" required>
+        <button type="submit">Add Category</button>
+    </form>
+</article>
+
+<article>
+    <h2>Your Existing Categories</h2>
+    {% if categories %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Category Name</th>
+                    <!-- Add a header for actions in the future -->
+                </tr>
+            </thead>
+            <tbody>
+                {% for category in categories %}
+                    <tr>
+                        <td>{{ category.name }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <div style="text-align: center; padding: 2rem;">
+            <p>You haven't created any categories yet. Add one above to get started!</p>
         </div>
-        <div>
-            <h2>Add a New Category</h2>
-            <form method="POST" action="{{ url_for('main.manage_categories') }}">
-                <label for="name">Category Name</label>
-                <input type="text" id="name" name="name" required>
-                <button type="submit">Add Category</button>
-            </form>
-        </div>
-    </div>
+    {% endif %}
+</article>
 {% endblock %}

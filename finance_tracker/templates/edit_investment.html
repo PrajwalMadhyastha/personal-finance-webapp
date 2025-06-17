@@ -4,15 +4,21 @@
 
 {% block content %}
 <article>
-    <hgroup>
-        <h2>Edit Investment Transaction</h2>
-        <p>Correcting details for your <strong>{{ trans.asset.ticker_symbol }}</strong> transaction.</p>
-    </hgroup>
+    <header class="grid">
+        <div>
+            <hgroup>
+                <h2>Edit Investment Transaction</h2>
+                <p>Correcting details for your <strong>{{ trans.asset.ticker_symbol }}</strong> transaction.</p>
+            </hgroup>
+        </div>
+        <div style="text-align: right;">
+            <a href="{{ url_for('main.portfolio') }}" role="button" class="secondary outline">‹ Back to Portfolio</a>
+        </div>
+    </header>
     <form method="POST" action="{{ url_for('main.edit_investment_transaction', transaction_id=trans.id) }}">
         <label for="ticker_symbol">Ticker Symbol</label>
         <input type="text" id="ticker_symbol" name="ticker_symbol" value="{{ trans.asset.ticker_symbol }}" readonly disabled>
         <small>Ticker symbol cannot be changed. To correct a ticker, please delete this transaction and create a new one.</small>
-
         <div class="grid">
             <div>
                 <label for="transaction_type">Transaction Type</label>
@@ -26,22 +32,17 @@
                 <input type="date" id="transaction_date" name="transaction_date" value="{{ trans.transaction_date.strftime('%Y-%m-%d') }}" required>
             </div>
         </div>
-
         <div class="grid">
             <div>
                 <label for="quantity">Quantity</label>
-                <input type="number" step="any" id="quantity" name="quantity" value="{{ trans.quantity }}" required>
+                <input type="number" step="any" id="quantity" name="quantity" value="{{ trans.quantity|int }}" required>
             </div>
             <div>
                 <label for="price_per_unit">Price Per Unit (₹)</label>
-                <input type="number" step="any" id="price_per_unit" name="price_per_unit" value="{{ trans.price_per_unit }}" required>
+                <input type="number" step="any" id="price_per_unit" name="price_per_unit" value="{{ '%.2f'|format(trans.price_per_unit) }}" required>
             </div>
         </div>
-
-        <div class="grid">
-            <button type="submit">Update Transaction</button>
-            <a href="{{ url_for('main.portfolio') }}" role="button" class="secondary outline">Cancel</a>
-        </div>
+        <button type="submit">Update Transaction</button>
     </form>
 </article>
 {% endblock %}
