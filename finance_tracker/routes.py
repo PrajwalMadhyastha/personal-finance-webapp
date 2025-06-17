@@ -2030,6 +2030,78 @@ def net_worth_report():
         investments=investment_details,
     )
 
+@main_bp.route('/report/category_trend')
+@login_required
+def category_trend_report():
+    """
+    Renders the page for the category spending trend report.
+    Passes data needed to populate the selection form.
+    """
+    # Get the selected category and year from the URL query parameters
+    selected_category_id = request.args.get('category_id', type=int)
+    selected_year = request.args.get('year', default=datetime.now(timezone.utc).year, type=int)
+
+    # Fetch all of the user's categories to populate the dropdown
+    user_categories = db.session.execute(
+        select(Category).filter_by(user_id=current_user.id).order_by(Category.name)
+    ).scalars().all()
+    
+    # Create a list of years for the year dropdown
+    current_year = datetime.now(timezone.utc).year
+    years_for_dropdown = range(current_year, current_year - 5, -1)
+
+    return render_template(
+        'category_trend.html',
+        categories=user_categories,
+        years=years_for_dropdown,
+        selected_category_id=selected_category_id,
+        selected_year=selected_year
+    )
+
+
+@main_bp.route('/api/monthly_spending')
+@login_required
+def monthly_spending_api():
+    """
+    API endpoint that returns the total monthly spending for a given
+    category and year, formatted for a bar chart.
+    """
+    category_id = request.args.get('category_id', type=int)
+    year = request.args.get('year', type=int)
+
+    if not category_id or not year:
+        return jsonify({"error": "A category_id and year are required."}), 400
+
+    # --- THIS IS THE CORRECTED QUERY ---
+    spending_data = db.session.query(
+        func.extract('month', Transaction.transaction_date).label('month'),
+        func.sum(Transaction.amount).label('total')
+    ).join(
+        transaction_categories
+    ).filter(
+        Transaction.user_id == current_user.id,
+        Transaction.transaction_type == 'expense',
+        Transaction.affects_balance == True,
+        transaction_categories.c.category_id == category_id,
+        func.extract('year', Transaction.transaction_date) == year
+    ).group_by(
+        # The fix is here: We group by the function call itself, not the alias 'month'.
+        func.extract('month', Transaction.transaction_date)
+    ).all()
+    # --- END OF CORRECTED QUERY ---
+    
+    # Initialize a list of 12 zeros, one for each month
+    monthly_totals = [0] * 12
+    for row in spending_data:
+        month_index = int(row.month) - 1
+        monthly_totals[month_index] = float(row.total)
+
+    chart_data = {
+        "labels": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        "data": monthly_totals
+    }
+    
+    return jsonify(chart_data)
 
 @main_bp.route("/export-transactions")
 @login_required

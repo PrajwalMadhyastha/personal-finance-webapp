@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block title %}Category Spending Trend{% endblock %}
+
+{% block content %}
+<article>
+    <header>
+        <hgroup>
+            <h2>Category Spending Trend</h2>
+            <p>Analyze your month-over-month spending for a specific category.</p>
+        </hgroup>
+    </header>
+
+    <!-- Form for selecting category and year -->
+    <form method="GET" action="{{ url_for('main.category_trend_report') }}">
+        <div class="grid">
+            <label for="category_id">
+                Select a Category
+                <select id="category_id" name="category_id" required>
+                    <option value="" disabled {% if not selected_category_id %}selected{% endif %}>-- Choose a category --</option>
+                    {% for category in categories %}
+                        <option value="{{ category.id }}" {% if category.id == selected_category_id %}selected{% endif %}>{{ category.name }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+            <label for="year">
+                Select a Year
+                <select id="year" name="year" required>
+                    {% for year in years %}
+                        <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </label>
+        </div>
+        <button type="submit">Generate Report</button>
+    </form>
+</article>
+
+<!-- This section only appears if a category has been selected -->
+{% if selected_category_id %}
+<article>
+    <header>
+        <h4>Spending for '{{ categories | selectattr('id', 'equalto', selected_category_id) | map(attribute='name') | first }}' in {{ selected_year }}</h4>
+    </header>
+    <div style="height: 400px;">
+        <canvas id="categoryTrendChart"></canvas>
+    </div>
+</article>
+{% endif %}
+
+{% endblock %}
+
+
+{% block scripts %}
+    {{ super() }} <!-- Includes scripts from base.html (like Chart.js) -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Find the canvas element
+        const canvas = document.getElementById('categoryTrendChart');
+        
+        // Only run the script if the canvas exists on the page
+        if (canvas) {
+            // Get the selected category and year from the form dropdowns
+            const categoryId = document.getElementById('category_id').value;
+            const year = document.getElementById('year').value;
+
+            // Fetch the data from our new API endpoint
+            fetch(`/api/monthly_spending?category_id=${categoryId}&year=${year}`)
+                .then(response => response.json())
+                .then(data => {
+                    const ctx = canvas.getContext('2d');
+                    new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: data.labels,
+                            datasets: [{
+                                label: 'Monthly Spending (₹)',
+                                data: data.data,
+                                backgroundColor: 'rgba(16, 149, 193, 0.6)',
+                                borderColor: 'rgba(16, 149, 193, 1)',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        // Format Y-axis ticks as currency
+                                        callback: function(value, index, values) {
+                                            return '₹' + value.toLocaleString();
+                                        }
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false // The chart title is clear enough
+                                }
+                            }
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching chart data:', error));
+        }
+    });
+    </script>
+{% endblock %}
