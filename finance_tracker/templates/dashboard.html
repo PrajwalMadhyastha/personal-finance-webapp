@@ -3,20 +3,33 @@
 {% block title %}Dashboard{% endblock %}
 
 {% block content %}
-    <div class="grid">
-        <div>
-            <h2>Dashboard</h2>
-            <p>Welcome back, {{ current_user.username }}!</p>
-        </div>
-        <div style="text-align: right;">
-            <form id="date-range-form">
-                <div class="grid">
-                    <div><label for="start_date">Start Date</label><input type="date" id="start_date" name="start_date" value="{{ start_date }}"></div>
-                    <div><label for="end_date">End Date</label><input type="date" id="end_date" name="end_date" value="{{ end_date }}"></div>
-                </div>
-            </form>
-        </div>
-    </div>
+    <article>
+        <header class="grid">
+            <div>
+                <hgroup>
+                    <h2>Dashboard</h2>
+                    <p>Welcome back, {{ current_user.username }}!</p>
+                </hgroup>
+            </div>
+            <div style="text-align: right;">
+                <!-- Corrected Filter Form -->
+                <form id="date-range-form" method="GET" action="{{ url_for('main.dashboard') }}">
+                    <div class="grid">
+                        <label for="start_date">Start Date
+                            <input type="date" id="start_date" name="start_date" value="{{ start_date }}">
+                        </label>
+                        <label for="end_date">End Date
+                            <input type="date" id="end_date" name="end_date" value="{{ end_date }}">
+                        </label>
+                        <!-- FIX: Styled the Apply button for proper alignment -->
+                        <label for="apply_filter_btn" style="margin-bottom: -1rem;">&nbsp;
+                            <button type="submit" id="apply_filter_btn" class="contrast" style="margin: 0; padding-top: 0.75rem; padding-bottom: 0.75rem;">Apply</button>
+                        </label>
+                    </div>
+                </form>
+            </div>
+        </header>
+    </article>
     
     <article>
         <hgroup>
@@ -62,7 +75,6 @@
             <div style="height: 300px;"><canvas id="dailyTrendChart"></canvas></div>
         </article>
         <article>
-            <!-- FIX: Changed <header> to <h4> to match other chart styles -->
             <h4>Income vs. Expense Trend</h4>
             <div style="height: 300px;"><canvas id="financialTrendChart"></canvas></div>
         </article>
@@ -70,6 +82,7 @@
 
     <hr>
     
+    <!-- FIX: Restored the missing sections -->
     <div class="grid">
         <article>
             <h4>Your Accounts</h4>
@@ -104,9 +117,7 @@
                     <thead>
                         <tr>
                             <th>Description</th>
-                            <th>Category</th>
-                            <th>Tags</th>
-                            <th style="text-align: right;">Amount</th>
+                            <th>Amount</th>
                             <th>Date</th>
                         </tr>
                     </thead>
@@ -114,23 +125,15 @@
                     {% for transaction in transactions %}
                         <tr>
                             <td>{{ transaction.description }}</td>
-                            <td>
-                                {% if transaction.categories %}{{ transaction.categories[0].name }}{% endif %}
-                            </td>
-                            <td>
-                                {% for tag in transaction.tags %}
-                                    <a href="{{ url_for('main.tag_detail', tag_name=tag.name) }}" class="badge">{{ tag.name }}</a>
-                                {% endfor %}
-                            </td>
                             <td class="{{ transaction.transaction_type }}" style="text-align: right;">
                                 {% if transaction.transaction_type == 'income' %}+{% else %}-{% endif %}
                                 ₹{{ "%.2f"|format(transaction.amount) }}
                             </td>
                             <td>
-                            <small class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
-                                {{ transaction.transaction_date.strftime('%b %d, %Y') }}
-                            </small>
-                        </td>
+                                <span class="local-datetime" datetime="{{ transaction.transaction_date | datetimeformat }}">
+                                    {{ transaction.transaction_date.strftime('%b %d, %Y') }}
+                                </span>
+                            </td>
                         </tr>
                     {% endfor %}
                     </tbody>
@@ -148,7 +151,7 @@
                         <li>
                             {{ log.description }}<br>
                             <small><em class="local-datetime" datetime="{{ log.timestamp | datetimeformat }}">
-                                {{ log.timestamp.strftime('%b %d, %Y') }} <!-- Show a fallback date -->
+                                {{ log.timestamp.strftime('%b %d, %Y') }}
                             </em></small>
                         </li>
                     {% endfor %}
@@ -162,91 +165,42 @@
 {% endblock %}
 
 {% block scripts %}
-{{ super() }}
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    let categoryChart, dailyExpenseChart, financialTrendChart; // Hold all chart instances
+    {{ super() }}
 
-    const startDateInput = document.getElementById('start_date');
-    const endDateInput = document.getElementById('end_date');
-
-    // Fetch data for the Expense Breakdown pie chart
-    async function updateCategoryChart() {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
-        const response = await fetch(`/api/transaction-summary?start_date=${startDate}&end_date=${endDate}`);
-        const data = await response.json();
+    <!-- Simplified and Corrected JavaScript -->
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const startDate = document.getElementById('start_date').value;
+        const endDate = document.getElementById('end_date').value;
         
-        if (categoryChart) categoryChart.destroy();
-        // FIX: Using the correct ID 'categoryChart'
-        const ctx = document.getElementById('categoryChart').getContext('2d');
-        categoryChart = new Chart(ctx, {
-            type: 'pie',
-            data: {
-                labels: data.labels,
-                datasets: [{ data: data.data, backgroundColor: ['#1095c1', '#f39c12', '#d92121', '#2ecc71', '#9b59b6'] }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'top' } } }
-        });
-    }
+        async function updateCategoryChart() {
+            const response = await fetch(`/api/transaction-summary?start_date=${startDate}&end_date=${endDate}`);
+            const data = await response.json();
+            const ctx = document.getElementById('categoryChart').getContext('2d');
+            new Chart(ctx, { type: 'pie', data: { labels: data.labels, datasets: [{ data: data.data, backgroundColor: ['#1095c1', '#f39c12', '#d92121', '#2ecc71', '#9b59b6'] }] }, options: { responsive: true, maintainAspectRatio: false } });
+        }
 
-    // FIX: Re-introduced the missing function for the Daily Expense Trend chart
-    async function updateDailyExpenseChart() {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
-        const response = await fetch(`/api/daily_expense_trend?start_date=${startDate}&end_date=${endDate}`);
-        const data = await response.json();
+        async function updateDailyExpenseChart() {
+            const response = await fetch(`/api/daily_expense_trend?start_date=${startDate}&end_date=${endDate}`);
+            const data = await response.json();
+            const ctx = document.getElementById('dailyTrendChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: data.labels, datasets: [{ label: 'Daily Expenses', data: data.data, borderColor: 'rgba(217, 33, 33, 1)', tension: 0.1 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } } });
+        }
 
-        if (dailyExpenseChart) dailyExpenseChart.destroy();
-        const ctx = document.getElementById('dailyTrendChart').getContext('2d');
-        dailyExpenseChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.labels,
-                datasets: [{
-                    label: 'Daily Expenses',
-                    data: data.data,
-                    borderColor: 'rgba(217, 33, 33, 1)',
-                    tension: 0.1
-                }]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-        });
-    }
+        async function updateFinancialTrendChart() {
+            const response = await fetch(`/api/financial_trend?start_date=${startDate}&end_date=${endDate}`);
+            const data = await response.json();
+            const ctx = document.getElementById('financialTrendChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: data.labels, datasets: [ { label: 'Income', data: data.income_data, borderColor: 'rgba(46, 204, 113, 1)' }, { label: 'Expenses', data: data.expense_data, borderColor: 'rgba(217, 33, 33, 1)' } ] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } } });
+        }
 
-    // Fetch data for the Income vs. Expense line chart
-    async function updateFinancialTrendChart() {
-        const startDate = startDateInput.value;
-        const endDate = endDateInput.value;
-        const response = await fetch(`/api/financial_trend?start_date=${startDate}&end_date=${endDate}`);
-        const data = await response.json();
+        function drawAllCharts() {
+            updateCategoryChart();
+            updateDailyExpenseChart();
+            updateFinancialTrendChart();
+        }
 
-        if (financialTrendChart) financialTrendChart.destroy();
-        const ctx = document.getElementById('financialTrendChart').getContext('2d');
-        financialTrendChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.labels,
-                datasets: [
-                    { label: 'Income', data: data.income_data, borderColor: 'rgba(46, 204, 113, 1)' },
-                    { label: 'Expenses', data: data.expense_data, borderColor: 'rgba(217, 33, 33, 1)' }
-                ]
-            },
-            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
-        });
-    }
-
-    // A single function to update all charts
-    function updateAllCharts() {
-        updateCategoryChart();
-        updateDailyExpenseChart(); // Call the restored function
-        updateFinancialTrendChart();
-    }
-
-    // Event listeners and initial load
-    startDateInput.addEventListener('change', updateAllCharts);
-    endDateInput.addEventListener('change', updateAllCharts);
-    updateAllCharts();
-});
-</script>
+        drawAllCharts();
+    });
+    </script>
 {% endblock %}
