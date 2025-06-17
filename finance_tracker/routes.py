@@ -2723,28 +2723,47 @@ def add_investment():
 # In finance_tracker/routes.py
 
 
-@main_bp.route("/portfolio/edit/<int:transaction_id>", methods=["GET", "POST"])
+@main_bp.route('/portfolio/edit/<int:transaction_id>', methods=['GET', 'POST'])
 @login_required
 def edit_investment_transaction(transaction_id):
     trans = db.get_or_404(InvestmentTransaction, transaction_id)
-
     if trans.user_id != current_user.id:
         abort(403)
 
-    if request.method == "POST":
-        # ... (rest of your function) ...
-        trans.transaction_type = request.form.get("transaction_type")
-        trans.quantity = decimal.Decimal(request.form.get("quantity"))
-        trans.price_per_unit = decimal.Decimal(request.form.get("price_per_unit"))
-        trans.transaction_date = datetime.strptime(
-            request.form.get("transaction_date"), "%Y-%m-%d"
-        )
+    if request.method == 'POST':
+        # --- 1. Handle Ticker Symbol Change (Find or Create Asset) ---
+        new_ticker = request.form.get('ticker_symbol', '').strip().upper()
+        if new_ticker:
+            asset = db.session.execute(
+                select(Asset).filter_by(ticker_symbol=new_ticker)
+            ).scalar_one_or_none()
+            
+            if not asset:
+                asset = Asset(ticker_symbol=new_ticker, name=new_ticker, asset_type='Stock')
+                db.session.add(asset)
+            
+            trans.asset = asset
+        
+        # --- 2. Update Transaction Details from Form ---
+        trans.transaction_type = request.form.get('transaction_type')
+        trans.quantity = decimal.Decimal(request.form.get('quantity'))
+        trans.price_per_unit = decimal.Decimal(request.form.get('price_per_unit'))
+        
+        # --- THIS IS THE FIX ---
+        # Get the datetime string from the form and parse it with the correct format.
+        datetime_str = request.form.get('transaction_date')
+        if datetime_str:
+            trans.transaction_date = datetime.strptime(datetime_str, '%Y-%m-%dT%H:%M')
+        # --- END OF FIX ---
+        
         log_activity(f"Updated investment transaction for {trans.asset.ticker_symbol}.")
         db.session.commit()
-        flash("Investment transaction updated successfully.", "success")
-        return redirect(url_for("main.portfolio"))
+        flash('Investment transaction updated successfully!', 'success')
+        return redirect(url_for('main.portfolio'))
 
-    return render_template("edit_investment.html", trans=trans)
+    # For a GET request, simply render the template with the transaction object.
+    # The template itself handles formatting the date for the input field.
+    return render_template('edit_investment.html', trans=trans)
 
 
 @main_bp.route("/portfolio/delete/<int:transaction_id>", methods=["POST"])

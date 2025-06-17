@@ -17,8 +17,8 @@
     </header>
     <form method="POST" action="{{ url_for('main.edit_investment_transaction', transaction_id=trans.id) }}">
         <label for="ticker_symbol">Ticker Symbol</label>
-        <input type="text" id="ticker_symbol" name="ticker_symbol" value="{{ trans.asset.ticker_symbol }}" readonly disabled>
-        <small>Ticker symbol cannot be changed. To correct a ticker, please delete this transaction and create a new one.</small>
+        <input type="text" id="ticker_symbol" name="ticker_symbol" value="{{ trans.asset.ticker_symbol }}" required style="text-transform:uppercase">
+        <small>You can correct a typo in the ticker symbol here. If an asset with the new ticker doesn't exist, it will be created.</small>
         <div class="grid">
             <div>
                 <label for="transaction_type">Transaction Type</label>
