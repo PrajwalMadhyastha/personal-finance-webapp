@@ -500,78 +500,90 @@ def import_transactions():
 
         try:
             csv_reader = csv.reader(codecs.iterdecode(file, 'utf-8'))
-            header = next(csv_reader) # Skip header
+            header = next(csv_reader) # Skip header row
             
             transactions_to_add, accounts_to_update, errors = [], {}, []
             success_count = 0
 
-            # Pre-fetch user's categories for efficient lookup
-            user_categories = {c.name.lower(): c for c in db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars()}
+            # Pre-fetch user's data for efficient lookups
+            user_accounts = {(acc.name.lower(), acc.account_type.lower()): acc for acc in db.session.execute(select(Account).filter_by(user_id=current_user.id)).scalars()}
+            user_categories = {cat.name.lower(): cat for cat in db.session.execute(select(Category).filter_by(user_id=current_user.id)).scalars()}
+            user_tags = {tag.name.lower(): tag for tag in db.session.execute(select(Tag).filter_by(user_id=current_user.id)).scalars()}
 
             for i, row in enumerate(csv_reader):
                 row_num = i + 2
-                # --- EXPECTING 6 COLUMNS NOW ---
-                if len(row) < 6:
-                    errors.append(f"Row {row_num}: Invalid number of columns. Expected 6, got {len(row)}.")
-                    continue
                 
-                date_str, desc, amount_str, account_name, account_type, category_name = row
+                # --- THIS IS THE CORRECTED UNPACKING LOGIC ---
+                try:
+                    # It now correctly expects exactly 10 columns
+                    date_str, time_str, desc, amount_str, trans_type, acc_name, acc_type, cats_str, tags_str, notes = row
+                except ValueError:
+                    errors.append(f"Row {row_num}: Invalid number of columns. Expected 10, got {len(row)}.")
+                    continue
                 
                 try:
-                    trans_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    # Combine and parse date/time, and parse the amount
+                    combined_datetime_str = f"{date_str} {time_str}"
+                    trans_date = datetime.strptime(combined_datetime_str, '%Y-%m-%d %I:%M %p')
                     amount = decimal.Decimal(amount_str)
-                except ValueError:
-                    errors.append(f"Row {row_num}: Invalid date ('{date_str}') or amount ('{amount_str}').")
+                except (ValueError, decimal.InvalidOperation):
+                    errors.append(f"Row {row_num}: Invalid date/time ('{date_str} {time_str}') or amount ('{amount_str}').")
                     continue
+                # --- END OF CORRECTED LOGIC ---
 
-                trans_datetime = datetime.combine(trans_date, datetime.min.time(), tzinfo=timezone.utc)
-
-                # --- NEW, PRECISE ACCOUNT MATCHING LOGIC ---
-                stmt = select(Account).where(
-                    Account.user_id == current_user.id,
-                    func.lower(Account.name) == account_name.strip().lower(),
-                    func.lower(Account.account_type) == account_type.strip().lower()
-                )
-                account = db.session.execute(stmt).scalar_one_or_none()
-                # --- END OF NEW LOGIC ---
-
+                account = user_accounts.get((acc_name.strip().lower(), acc_type.strip().lower()))
                 if not account:
-                    errors.append(f"Row {row_num}: Account with name '{account_name}' and type '{account_type}' not found.")
+                    errors.append(f"Row {row_num}: Account '{acc_name}' ({acc_type}) not found.")
                     continue
                 
-                # Find or create category
-                category = user_categories.get(category_name.strip().lower())
-                if not category and category_name.strip():
-                    category = Category(name=category_name.strip(), user_id=current_user.id)
-                    db.session.add(category)
-                    user_categories[category_name.strip().lower()] = category
-                    log_activity(f"Created new category via import: '{category.name}'")
-
                 # Prepare transaction
                 new_trans = Transaction(
                     user_id=current_user.id,
-                    transaction_date=trans_datetime, # Use the corrected datetime object
+                    transaction_date=trans_date,
                     description=desc.strip(),
-                    amount=abs(amount),
-                    transaction_type='expense' if amount < 0 else 'income',
-                    account_id=account.id
+                    amount=amount,
+                    transaction_type=trans_type.strip().lower(),
+                    account_id=account.id,
+                    notes=notes.strip()
                 )
-                if category: new_trans.categories.append(category)
+                
+                # Process Categories
+                if cats_str:
+                    cat_names = [name.strip() for name in cats_str.split(';') if name.strip()]
+                    for cat_name in cat_names:
+                        category = user_categories.get(cat_name.lower())
+                        if not category:
+                            category = Category(name=cat_name, user_id=current_user.id)
+                            db.session.add(category)
+                            user_categories[cat_name.lower()] = category
+                        new_trans.categories.append(category)
+
+                # Process Tags
+                if tags_str:
+                    tag_names = [name.strip() for name in tags_str.split(';') if name.strip()]
+                    for tag_name in tag_names:
+                        tag = user_tags.get(tag_name.lower())
+                        if not tag:
+                            tag = Tag(name=tag_name, user_id=current_user.id)
+                            db.session.add(tag)
+                            user_tags[tag_name.lower()] = tag
+                        new_trans.tags.append(tag)
+                
                 transactions_to_add.append(new_trans)
                 
-                # Tally balance changes
+                # Balance update logic
+                balance_change = amount if new_trans.transaction_type == 'income' else -amount
                 if account.id not in accounts_to_update:
                     accounts_to_update[account.id] = {'account': account, 'change': decimal.Decimal(0)}
-                accounts_to_update[account.id]['change'] += amount
+                accounts_to_update[account.id]['change'] += balance_change
                 
                 success_count += 1
-
-            # --- Atomic Database Operation ---
+            
+            # Atomic Database Operation
             if transactions_to_add:
                 db.session.add_all(transactions_to_add)
                 for data in accounts_to_update.values():
                     data['account'].balance += data['change']
-                
                 db.session.commit()
                 flash(f"Successfully imported {success_count} transactions.", 'success')
             
@@ -588,6 +600,7 @@ def import_transactions():
         return redirect(url_for('main.transactions'))
 
     return render_template('import.html')
+
 
 # ===================================================================
 # ACCOUNT & BUDGET ROUTES
@@ -1356,8 +1369,7 @@ def export_transactions():
     or a filtered set if filter parameters are provided in the URL.
     """
     try:
-        # This route uses the same filtering logic as the main transactions page.
-        # If no filters are passed in the URL, it will fetch all transactions.
+        # --- THIS IS THE FIX: The full filtering logic is now included ---
         search_query = request.args.get('q', '').strip()
         trans_type = request.args.get('type', '').strip()
         account_id = request.args.get('account_id', type=int)
@@ -1369,7 +1381,7 @@ def export_transactions():
             selectinload(Transaction.account), selectinload(Transaction.categories), selectinload(Transaction.tags)
         ).filter_by(user_id=current_user.id)
 
-        # Apply filters only if they are present in the URL
+        # Apply all filters exactly like the main transactions page
         if trans_type: stmt = stmt.where(Transaction.transaction_type == trans_type)
         if account_id: stmt = stmt.where(Transaction.account_id == account_id)
         if category_id: stmt = stmt.where(Transaction.categories.any(id=category_id))
@@ -1382,20 +1394,32 @@ def export_transactions():
             start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             end_date_inclusive = datetime.combine(datetime.strptime(end_date_str, '%Y-%m-%d').date(), datetime.max.time())
             stmt = stmt.where(Transaction.transaction_date.between(start_date, end_date_inclusive))
+        # --- END OF FIX ---
 
-        # Execute query to get ALL matching results (no pagination)
+        # Execute the (now filtered) query to get all matching results
         stmt = stmt.order_by(Transaction.transaction_date.desc())
         transactions_to_export = db.session.execute(stmt).scalars().all()
 
         # Generate the CSV file in memory
         string_io = io.StringIO()
         csv_writer = csv.writer(string_io)
-        csv_writer.writerow(['Date', 'Description', 'Amount', 'Type', 'Account', 'Categories', 'Tags', 'Notes'])
+        csv_writer.writerow(['Date', 'Time', 'Description', 'Amount', 'Type', 'Account Name', 'Account Type', 'Categories', 'Tags', 'Notes'])
 
         for t in transactions_to_export:
-            category_names = ', '.join(sorted([c.name for c in t.categories]))
-            tag_names = ', '.join(sorted([tag.name for tag in t.tags]))
-            csv_writer.writerow([t.transaction_date.isoformat(), t.description, t.amount, t.transaction_type, t.account.name if t.account else 'N/A', category_names, tag_names, t.notes or ''])
+            category_names = ';'.join(sorted([c.name for c in t.categories]))
+            tag_names = ';'.join(sorted([tag.name for tag in t.tags]))
+            csv_writer.writerow([
+                t.transaction_date.strftime('%Y-%m-%d'),
+                t.transaction_date.strftime('%I:%M %p'),
+                t.description,
+                t.amount,
+                t.transaction_type,
+                t.account.name if t.account else '',
+                t.account.account_type if t.account else '',
+                category_names,
+                tag_names,
+                t.notes or ''
+            ])
             
         output = string_io.getvalue()
         filename = f"transactions_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"

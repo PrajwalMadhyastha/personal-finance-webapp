@@ -6,32 +6,30 @@
 <article>
     <hgroup>
         <h2>Import Transactions from CSV</h2>
-        <p>Bulk upload transactions from a CSV file downloaded from your bank.</p>
+        <p>Bulk upload transactions from a CSV file.</p>
     </hgroup>
 
     <form method="POST" enctype="multipart/form-data" action="{{ url_for('main.import_transactions') }}">
-        <label for="transaction_file">
-            CSV File
-            <input type="file" id="transaction_file" name="transaction_file" accept=".csv" required>
-        </label>
+        <label for="transaction_file">CSV File<input type="file" id="transaction_file" name="transaction_file" accept=".csv" required></label>
         <button type="submit">Upload and Import</button>
     </form>
     
     <hr>
     
     <h4>CSV Format Instructions</h4>
-    <p>Please ensure your CSV file has **6 columns** in the following order, with a header row:</p>
-    <pre><code>Date,Description,Amount,Account Name,Account Type,Category
-2025-06-15,Grocery Store,-75.50,SBI,Savings,Groceries
-2025-06-15,Monthly Salary,5000.00,SBI,Savings,Salary
-2025-06-16,Credit Card Bill,-250.00,SBI Credit Card,Credit Card,Bills</code></pre>
+    <!-- START: Updated instructions for 10 columns -->
+    <p>Please ensure your CSV file has **10 columns** in the following order, with a header row. The "Export All" feature generates a file in this exact format.</p>
+    <pre><code>Date,Time,Description,Amount,Type,Account Name,Account Type,Categories,Tags,Notes
+2025-06-17,10:30 AM,Groceries,150.75,expense,SBI,Savings,Groceries,shopping,
+2025-06-16,12:00 PM,Salary,50000.00,income,SBI,Savings,Salary,,Paycheck</code></pre>
     <ul>
         <li><strong>Date:</strong> Must be in <code>YYYY-MM-DD</code> format.</li>
-        <li><strong>Description:</strong> A brief description of the transaction.</li>
-        <li><strong>Amount:</strong> Use negative numbers for expenses (e.g., -75.50) and positive numbers for income.</li>
-        <li><strong>Account Name:</strong> The name of the account (e.g., "SBI", "SBI Credit Card").</li>
-        <li><strong>Account Type:</strong> The type of the account (e.g., "Savings", "Credit Card").<br><em>The combination of Account Name and Account Type must exactly match an account you have already created.</em></li>
-        <li><strong>Category:</strong> The name of the category. If the category does not exist, it will be created for you automatically.</li>
+        <li><strong>Time:</strong> Must be in 12-hour format with AM/PM (e.g., `10:30 AM`, `02:00 PM`).</li>
+        <li><strong>Amount:</strong> Always a positive number.</li>
+        <li><strong>Type:</strong> Must be `income` or `expense`.</li>
+        <li><strong>Account Name & Account Type:</strong> Must exactly match an account you have created.</li>
+        <li><strong>Categories & Tags:</strong> Separate multiple values with a semicolon (`;`).</li>
     </ul>
+    <!-- END: Updated instructions -->
 </article>
 {% endblock %}
